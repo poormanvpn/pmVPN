@@ -70,7 +70,7 @@ export function createApp(): HTMLElement {
   const addrDisplay = mk('span', 'pmvpn-addr-display');
   const logoutBtn = document.createElement('button');
   logoutBtn.className = 'pmvpn-btn-logout';
-  logoutBtn.textContent = 'Logout';
+  logoutBtn.textContent = 'LOGOUT';
   logoutBtn.style.display = 'none';
   logoutBtn.addEventListener('click', doLogout);
   headerRight.append(addrDisplay, logoutBtn);
@@ -135,7 +135,7 @@ export function createApp(): HTMLElement {
     renderConnections();
     addForm.style.display = 'none';
     nameIn.value = ''; hostIn.value = ''; portIn.value = '2200';
-    log(`Added: ${name}`, 'success');
+    log(`added: ${name}`, 'success');
   });
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
@@ -212,7 +212,7 @@ export function createApp(): HTMLElement {
         connections = connections.filter(c => c.id !== conn.id);
         saveConnections();
         renderConnections();
-        log(`Removed: ${conn.name}`, 'info');
+        log(`removed: ${conn.name}`, 'info');
       });
 
       item.append(info, removeBtn);
@@ -230,15 +230,15 @@ export function createApp(): HTMLElement {
     try {
       metamaskBtn.disabled = true;
       metamaskBtn.innerHTML = '🦊 Connecting...';
-      log('Requesting MetaMask connection...', 'info');
+      log('connecting to MetaMask...', 'info');
       const { address, wasLocked } = await connectMetaMask();
 
       if (wasLocked) {
-        log('MetaMask was locked — password verified', 'success');
+        log('password verified', 'success');
       } else {
-        log('MetaMask was already unlocked — signature verified identity', 'info');
-        log('Tip: Lock MetaMask (🦊 → ⋮ → Lock) before connecting for full security', 'info');
+        log('wallet was unlocked — set auto-lock: MetaMask → Settings → Advanced', 'info');
       }
+      log('signature verified', 'success');
 
       metamaskBtn.style.display = 'none';
       walletInfo.style.display = '';
@@ -250,11 +250,11 @@ export function createApp(): HTMLElement {
       `;
       addrDisplay.textContent = address.slice(0, 6) + '...' + address.slice(-4);
       logoutBtn.style.display = '';
-      log(`Authenticated: ${address} (signature proof verified)`, 'success');
+      log(`authenticated ${address.slice(0,10)}...`, 'success');
     } catch (e: any) {
       metamaskBtn.disabled = false;
       metamaskBtn.innerHTML = '🦊 Connect MetaMask';
-      log(`MetaMask: ${e.message}`, 'error');
+      log(e.message, 'error');
     }
   }
 
@@ -263,12 +263,19 @@ export function createApp(): HTMLElement {
   // clears all state. After this, the user must click Connect MetaMask
   // and approve in MetaMask again. No auto-reconnect. No residual data.
   async function doLogout() {
-    // 1. Kill every connection and wipe every payload
+    // 1. Disconnect all SSH connections and wipe every payload
+    const activeCount = connections.filter(c => c.status === 'connected').length;
     for (const conn of connections) {
+      if (conn.status === 'connected') {
+        log(`disconnecting: ${conn.name}`, 'info');
+      }
       conn.status = 'offline';
       conn.payload = null;
     }
     activeConnId = null;
+    if (activeCount > 0) {
+      log(`${activeCount} SSH connection(s) terminated`, 'info');
+    }
 
     // 2. Destroy terminal completely
     if (term) { term.destroy(); term = null; }
@@ -299,8 +306,8 @@ export function createApp(): HTMLElement {
 
     setStatus('disconnected');
     renderConnections();
-    log('Logged out — permissions revoked, all sessions destroyed', 'success');
-    log('Lock MetaMask now: 🦊 → ⋮ → Lock (requires password on next login)', 'info');
+    log('logged out — permissions revoked, sessions cleared', 'success');
+    log('lock MetaMask for full security: 🦊 → ⋮ → Lock', 'info');
   }
 
   function setStatus(s: string) {
@@ -312,7 +319,7 @@ export function createApp(): HTMLElement {
 
   // ── Connect to a specific connection ──
   async function doConnectTo(conn: Connection) {
-    if (!isConnected()) { log('Connect MetaMask first', 'error'); return; }
+    if (!isConnected()) { log('connect MetaMask first', 'error'); return; }
 
     const address = getAddress()!;
     const challengePort = parseInt(conn.port) + 3;
@@ -321,14 +328,14 @@ export function createApp(): HTMLElement {
 
     try {
       setStatus('connecting');
-      log(`[${conn.name}] Fetching challenge from ${conn.host}:${challengePort}...`, 'info');
+      log(`${conn.name}: fetching challenge...`, 'info');
       const challenge = await fetchChallenge(`http://${conn.host}:${challengePort}`, address);
-      log(`[${conn.name}] Nonce: ${challenge.nonce.slice(0, 16)}...`, 'info');
+      log(`${conn.name}: nonce ${challenge.nonce.slice(0, 12)}...`, 'info');
 
       setStatus('authenticating');
-      log(`[${conn.name}] Requesting MetaMask signature...`, 'info');
+      log(`${conn.name}: signing...`, 'info');
       const payload = await signAndBuildPayload(challenge.message, challenge.nonce);
-      log(`[${conn.name}] Signature received`, 'success');
+      log(`${conn.name}: signed`, 'success');
 
       conn.status = 'connected';
       conn.payload = payload;
@@ -364,12 +371,12 @@ export function createApp(): HTMLElement {
 
       setStatus('connected');
       renderConnections();
-      log(`[${conn.name}] Auth payload ready`, 'success');
+      log(`${conn.name}: payload ready — paste as SSH password`, 'success');
     } catch (e: any) {
       conn.status = 'error';
       setStatus('error');
       renderConnections();
-      log(`[${conn.name}] Failed: ${e.message}`, 'error');
+      log(`${conn.name}: ${e.message}`, 'error');
     }
   }
 
@@ -386,7 +393,7 @@ export function createApp(): HTMLElement {
     payloadSection.style.display = 'none';
     setStatus('disconnected');
     renderConnections();
-    log('Disconnected', 'info');
+    log('disconnected', 'info');
   }
 
   // MetaMask account changes
@@ -400,14 +407,14 @@ export function createApp(): HTMLElement {
         <div style="font-size:11px;color:#484f58;word-break:break-all">${addr}</div>
       `;
       addrDisplay.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
-      log(`Account switched: ${addr.slice(0, 10)}...`, 'info');
+      log(`account switched: ${addr.slice(0, 10)}...`, 'info');
     }
   });
 
   renderConnections();
-  log('pmVPN client ready', 'info');
-  log('Local server: localhost:2200', 'info');
-  if (!hasMetaMask()) log('MetaMask not detected — install the browser extension', 'error');
+  log('pmvpn ready', 'info');
+  log('local server: localhost:2200', 'info');
+  if (!hasMetaMask()) log('MetaMask not detected — install browser extension', 'error');
 
   return root;
 }
