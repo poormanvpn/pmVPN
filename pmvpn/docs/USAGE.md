@@ -97,7 +97,7 @@ PMVPN server ready — 8 ports active
   SFTP:           0.0.0.0:2201
   SSH Exec:       0.0.0.0:2202
   Challenge API:  0.0.0.0:2203
-  VPN Tunnel:     0.0.0.0:2204
+  WS Bridge:      0.0.0.0:2204
   File Sync:      0.0.0.0:2205
   Claude AI:      0.0.0.0:2206
   Admin:          0.0.0.0:2207
@@ -138,29 +138,31 @@ For cloud providers (AWS, DigitalOcean, Hetzner), also open 2200–2207 in the s
 
 This runs on the machine you connect FROM.
 
-### Option A: PARSEC Wallet (GUI — recommended)
-
-If you have PARSEC Wallet installed:
+### Option A: Browser Client (recommended)
 
 ```bash
-cd parsec-wallet
+cd pmVPN/pmvpn/client
 pnpm install
-pnpm run tauri:dev
+pnpm run dev
 ```
 
-1. Open PARSEC → navigate to **pmVPN** view
-2. Fill in **Add Host**:
+Open **http://localhost:1420/** in a browser with MetaMask installed.
+
+1. Click **🦊 Connect MetaMask** → MetaMask popup → approve → sign login challenge
+2. Click **+** to add a host (or use the pre-configured "Local Server")
    - **Name**: whatever you want (e.g. `my-server`)
-   - **Host**: server IP or hostname (e.g. `192.168.1.50` or `myserver.example.com`)
+   - **Host**: server IP or hostname (e.g. `192.168.1.50`)
    - **Port**: `2200` (or your custom base port)
-   - **Wallet**: your `0x...` address
-3. Click **Add Host**
-4. Click the host to connect
-5. PARSEC signs the challenge with bankon_vault → terminal opens
+3. Click the host to connect → MetaMask signs the server challenge
+4. **Terminal tab**: live bash shell — type commands, see output
+5. **Files tab**: browse remote files, download, upload, create folders
+6. Click **LOGOUT** to disconnect everything and revoke MetaMask permissions
 
-### Option B: Command-line test (no PARSEC needed)
+The connection is real — WebSocket to port +4 (WS Bridge) with authenticated PTY shell and SFTP.
 
-For testing without PARSEC, you can authenticate manually using Node.js and a standard SSH client.
+### Option B: Command-line test (no browser needed)
+
+For testing without MetaMask, you can authenticate manually using Foundry cast and a standard SSH client.
 
 #### Step 1: Get a challenge nonce
 

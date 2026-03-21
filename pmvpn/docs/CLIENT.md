@@ -1,16 +1,33 @@
-# pmVPN Client — Parsec Wallet Module
+# pmVPN Client
 
-*Handheld remote machine management*
+*Wallet-authenticated terminal and file browser*
 
-Updated: 2026-03-20
+Updated: 2026-03-21
 
 ---
 
 ## Overview
 
-The pmVPN client is a module inside the Parsec Wallet. It provides a terminal-based interface for connecting to and managing remote Linux machines, with wallet-based authentication.
+The pmVPN client is a standalone web application and a module inside PARSEC Wallet. It provides a live terminal and file browser for remote Linux machines, authenticated by MetaMask wallet signature.
 
-No separate app. No browser extension. Open Parsec → pmVPN → connect.
+**Standalone**: `http://localhost:1420/` — connect MetaMask, select server, get a live shell and file browser.
+
+**PARSEC module**: integrated into the wallet dashboard for Tauri desktop/mobile.
+
+---
+
+## How It Works
+
+1. **Connect MetaMask** — MetaMask returns your address (no key exposed)
+2. **Mandatory signature** — pmVPN generates a unique login challenge, MetaMask signs it (popup — cannot be bypassed). This is proof of personhood.
+3. **Select server** — click a connection from the sidebar
+4. **Challenge/sign** — client fetches nonce from server, MetaMask signs it
+5. **WebSocket connects** — auth payload sent to server port +4 (WS Bridge)
+6. **Server verifies** — viem.verifyMessage() on the signature, checks wallet map
+7. **Live terminal** — node-pty PTY shell piped over WebSocket to xterm.js
+8. **File browser** — SFTP commands (ls, get, put, mkdir, rm) over the same WebSocket
+
+No SSH client needed. No manual commands. The browser IS the client.
 
 ---
 
@@ -19,13 +36,36 @@ No separate app. No browser extension. Open Parsec → pmVPN → connect.
 ### Layout
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ pmVPN                                    [← Back]   │
-├──────────────┬──────────────────────────────────────┤
-│ Host List    │                                      │
-│              │           Terminal                    │
-│ ■ dev-box    │                                      │
-│   connected  │  user@remote:~$                      │
+┌──────────────────────────────────────────────────────┐
+│ pmVPN  WALLET-AUTHENTICATED REMOTE ACCESS   [LOGOUT] │
+├──────────────┬───────────────────────────────────────┤
+│ Wallet       │  ┌──────────┬───────┐                 │
+│ 🟢 0xf39F... │  │ Terminal │ Files │                 │
+│              ├──┴──────────┴───────┘                 │
+│ Connections  │                                       │
+│ + ─────────  │  user@remote:~$ ls                    │
+│ ■ Local      │  Documents  Downloads  .bashrc        │
+│   connected  │  user@remote:~$ _                     │
+│ □ staging    │                                       │
+│   offline    │                                       │
+│              │                                       │
+│ Add Host     │                                       │
+│ [Name]       │                                       │
+│ [Host]       │                                       │
+│ [Port]       │                                       │
+│ [Add]        │                                       │
+│              │                                       │
+│ Auth Payload │                                       │
+│ [payload...] │                                       │
+│ [Copy]       │                                       │
+│              │                                       │
+│ Diagnostics  │                                       │
+│ [Run Diag]   │                                       │
+├──────────────┴───────────────────────────────────────┤
+│ [log entries...]                                     │
+├──────────────────────────────────────────────────────┤
+│ ● Connected │ localhost:2200                         │
+└──────────────────────────────────────────────────────┘
 │              │  claude --model opus                  │
 │ □ staging    │  Hello! I'm Claude...                │
 │   offline    │                                      │

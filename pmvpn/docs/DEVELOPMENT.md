@@ -58,7 +58,28 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Lock integration (disconnect all on Parsec lock)
 - [x] TypeScript compiles clean, Rust compiles clean, Vite builds clean
 
-### Phase 4: Bootstrap & Persistence 🔄
+### Phase 4: Standalone Client + WebSocket Bridge ✅
+
+- [x] Standalone client UI (Vite, vanilla TypeScript, no frameworks)
+- [x] MetaMask login with mandatory signature (proof of personhood)
+- [x] wallet_revokePermissions on logout (MetaMask standard practice)
+- [x] Lock state detection via _metamask.isUnlocked()
+- [x] Connection list with +/− management, localStorage persistence
+- [x] WebSocket bridge on port +4 (replaces tunnel stub)
+- [x] WS auth: wallet signature verified server-side via viem
+- [x] Live terminal: xterm.js → WebSocket → node-pty PTY shell
+- [x] SFTP file browser: ls, get, put, mkdir, rm, stat over WebSocket
+- [x] Path sandboxing (no traversal outside user home)
+- [x] Tabbed interface: Terminal | Files
+- [x] File download (browser save), upload (file picker), new folder, delete
+- [x] Breadcrumb directory navigation
+- [x] Diagnostics panel: real server/challenge/signature/payload tests
+- [x] Tokyo Night theme with gnugui semantic tokens
+- [x] Green-on-black terminal with CRT scanline overlay
+- [x] Transparent favicon and logo from poormanvpn.png
+- [x] Auto-reconnect to known servers (saved connections)
+
+### Phase 5: Bootstrap & Persistence 🔄
 
 - [x] Bootstrap documentation (user/admin/zero-SSH methods)
 - [ ] Automated server upload via SFTP channel
@@ -68,23 +89,28 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] Host key TOFU (trust on first use) verification
 - [ ] Connection profile export/import
 
-### Phase 5: SFTP & File Manager
+### Phase 6: P2P File Sharing
 
-- [ ] ssh2 SFTP subsystem on port +1
-- [ ] Rust russh-sftp operations
-- [ ] Tauri SFTP commands (ls, get, put, mkdir, rm)
-- [ ] File manager panel in pmVPN view
-- [ ] Drag-and-drop upload/download
-- [ ] Progress indicators
+- [ ] Sender starts pmVPN server, stages files
+- [ ] Wallet-signed connection details sent to receiver
+- [ ] Receiver connects via browser (no server needed)
+- [ ] Both sides authenticated by signature (proof of personhood)
 
-### Phase 6: Claude Proxy
+### Phase 7: blocktalk (Wallet-to-Wallet Messaging)
+
+- [ ] Separate dApp module for wallet-to-wallet messaging
+- [ ] Uses pmVPN as module for file share between peers
+- [ ] Encrypted messages signed by sender wallet
+- [ ] Receiver verifies signature before accepting
+
+### Phase 9: Claude Proxy
 
 - [ ] Claude CLI proxy on port +6
 - [ ] Dedicated Claude terminal tab per host
 - [ ] Multi-host Claude session management
 - [ ] Claude output streaming via tunnel
 
-### Phase 7: Multi-Host Management
+### Phase 10: Multi-Host Management
 
 - [ ] Connect to N machines simultaneously
 - [ ] Tab-based terminal switching
@@ -92,7 +118,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] Batch command execution across hosts
 - [ ] Host group management
 
-### Phase 8: Hardening & Mobile
+### Phase 11: Hardening & Mobile
 
 - [ ] Security audit (input validation, path traversal, replay)
 - [ ] TLS on HTTP ports (self-signed or Let's Encrypt)
@@ -111,23 +137,26 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | Document | Description |
 |----------|-------------|
 | [README.md](../README.md) | Project overview and quick start |
+| [USAGE.md](USAGE.md) | Step-by-step connection guide |
 | [PROTOCOL.md](PROTOCOL.md) | PM tunnel protocol specification |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Server deployment guide |
 | [BOOTSTRAP.md](BOOTSTRAP.md) | Self-installation and key exchange |
 | [CLIENT.md](CLIENT.md) | Parsec client module documentation |
+| [metamaskbestpractice.md](metamaskbestpractice.md) | MetaMask auth standard practice |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 
 ---
 
 ## Dependencies Inventory
 
-### Server (4 production deps)
+### Server (5 production deps)
 
 | Package | License | Native? | Purpose |
 |---------|---------|---------|---------|
 | ssh2 | MIT | Optional C++ | SSH2 protocol |
 | node-pty | MIT | Yes (N-API) | PTY spawning |
 | viem | MIT | No | Signature verification |
+| ws | MIT | No | WebSocket bridge (browser connectivity) |
 | pino | MIT | No | Logging |
 
 ### Client — Rust (3 new deps)

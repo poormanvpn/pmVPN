@@ -106,7 +106,7 @@ This is not a consumer product. It is infrastructure for people who run their ow
   │   Port +1 ─── SFTP ───────── ssh2 SFTP subsystem            │
   │   Port +2 ─── SSH Exec ───── One-shot command execution      │
   │   Port +3 ─── Challenge ──── HTTP nonce endpoint             │
-  │   Port +4 ─── VPN Tunnel ─── PM Protocol (TCP/UDP/DNS mux)  │
+  │   Port +4 ─── WS Bridge ──── Browser terminal + file browser │
   │   Port +5 ─── File Sync ──── Bidirectional synchronization   │
   │   Port +6 ─── Claude AI ──── AI assistant proxy channel      │
   │   Port +7 ─── Admin ──────── Health, sessions, management    │
@@ -162,7 +162,7 @@ Base port configurable via `PMVPN_BASE_PORT` (default `2200`). All SSH ports req
 | **+1** | **SFTP** | SSH2/SFTP | File transfer. Browse remote filesystem, upload, download. Dedicated port keeps file ops separate from shell traffic |
 | **+2** | **SSH Exec** | SSH2 | Non-interactive commands. Run scripts, cron-style jobs, health checks. Returns stdout, stderr, and exit code |
 | **+3** | **Challenge API** | HTTP | Nonce endpoint. Client fetches challenge here before SSH auth. Node built-in `http.createServer` — no Express |
-| **+4** | **VPN Tunnel** | SSH2 + PM | Multiplexed TCP/UDP/DNS. 8-byte binary frames, 16-bit channel IDs, up to 65,535 concurrent streams. Flow control at 32KB |
+| **+4** | **WS Bridge** | WebSocket | Browser terminal + SFTP file browser. Wallet-authenticated WebSocket. Live PTY shell + file operations (ls, get, put, mkdir, rm) |
 | **+5** | **File Sync** | SSH2 | Bidirectional file synchronization between client and server |
 | **+6** | **Claude AI** | SSH2 | Dedicated channel for AI assistant proxy. Isolates Claude traffic from general shell use |
 | **+7** | **Admin** | HTTP | Server health, active sessions, connection metrics. Same auth-gated HTTP as Challenge API |
@@ -500,9 +500,10 @@ pmvpn/
 | [ssh2](https://github.com/mscdex/ssh2) | Brian White | MIT | Pure JavaScript SSH2 protocol |
 | [node-pty](https://github.com/microsoft/node-pty) | Microsoft | MIT | Real PTY spawning (N-API) |
 | [viem](https://viem.sh/) | wevm | MIT | secp256k1 signature verification |
+| [ws](https://github.com/websockets/ws) | websockets | MIT | WebSocket bridge for browser clients |
 | [pino](https://github.com/pinojs/pino) | Matteo Collina | MIT | Structured JSON logging |
 
-No Express. No ws. No dotenv. HTTP via Node built-in. Config via environment variables. Every dependency is an attack surface.
+No Express. No dotenv. HTTP via Node built-in. Config via environment variables. Every dependency is an attack surface.
 
 ### Client — Rust
 
