@@ -1,20 +1,15 @@
 // pmVPN Client — MetaMask Authentication
+// Standard practice: wallet_revokePermissions for disconnect.
 // See docs/metamaskbestpractice.md
 //
 // Security model:
-//   MetaMask cannot be locked or forced to ask for password by a dApp.
-//   So we don't rely on MetaMask's connection state at all.
+//   1. wallet_revokePermissions on logout (official MetaMask standard)
+//   2. Detect MetaMask lock state — warn if unlocked
+//   3. Mandatory signing challenge on every login (cannot be bypassed)
+//   4. After logout, instruct user to lock MetaMask for full security
 //
-//   Instead, EVERY login requires the user to SIGN a login challenge.
-//   MetaMask's signing popup requires explicit user approval every time —
-//   even if MetaMask is already unlocked and the site is already approved.
-//
-//   Flow:
-//     1. Get address from MetaMask (may auto-connect — that's fine)
-//     2. Generate a random login challenge
-//     3. User MUST sign the challenge in MetaMask (popup appears)
-//     4. Only after signature verification is the session active
-//     5. Logout destroys the session — next login requires a NEW signature
+// MetaMask does NOT expose a lock API to dApps. This is by design.
+// The MetaMask password is controlled by the user via auto-lock timer.
 
 import { createWalletClient, custom, type WalletClient } from 'viem';
 import { mainnet } from 'viem/chains';
@@ -29,7 +24,7 @@ export interface Challenge {
 let walletClient: WalletClient | null = null;
 let connectedAddress: string | null = null;
 let sessionActive = false;
-let sessionProof: string | null = null; // The signature that proves this session
+let sessionProof: string | null = null;
 
 /**
  * Check if MetaMask is available.
@@ -39,15 +34,34 @@ export function hasMetaMask(): boolean {
 }
 
 /**
- * Connect to MetaMask with MANDATORY signature verification.
- *
- * Even if MetaMask auto-connects (no password popup), the user MUST
- * approve a signing request. The signing popup ALWAYS appears and
- * requires explicit user action. This is our real authentication.
- *
- * Returns the verified address.
+ * Check if MetaMask is currently locked or unlocked.
+ * Returns true if locked (password required), false if unlocked.
+ * Returns null if detection is not available.
  */
-export async function connectMetaMask(): Promise<string> {
+export async function isMetaMaskLocked(): Promise<boolean | null> {
+  if (!hasMetaMask()) return null;
+  try {
+    // Official MetaMask API for checking lock state
+    const isUnlocked = await (window as any).ethereum._metamask.isUnlocked();
+    return !isUnlocked;
+  } catch {
+    return null; // Detection not available
+  }
+}
+
+/**
+ * Connect to MetaMask with mandatory signature verification.
+ *
+ * Flow:
+ *   1. Revoke existing permissions (standard practice)
+ *   2. Check if MetaMask is locked — report to caller
+ *   3. Request accounts (triggers password if locked, approval if unlocked)
+ *   4. Require signature on login challenge (ALWAYS shows popup)
+ *   5. Session active only after signature proof
+ *
+ * Returns { address, wasLocked } so the UI can inform the user.
+ */
+export async function connectMetaMask(): Promise<{ address: string; wasLocked: boolean }> {
   if (!hasMetaMask()) {
     throw new Error('MetaMask not found. Install MetaMask to continue.');
   }
@@ -60,15 +74,22 @@ export async function connectMetaMask(): Promise<string> {
 
   const ethereum = (window as any).ethereum;
 
-  // Step 1: Get address (may auto-connect — that's OK, it's not our auth)
-  let accounts: string[];
+  // Step 1: Check if MetaMask is locked before we do anything
+  const wasLocked = await isMetaMaskLocked();
+
+  // Step 2: Revoke permissions (standard practice per MetaMask docs)
   try {
-    // Try revoking first for a cleaner experience
     await ethereum.request({
       method: 'wallet_revokePermissions',
       params: [{ eth_accounts: {} }],
-    }).catch(() => {});
+    });
+  } catch {}
 
+  // Step 3: Request accounts
+  // If MetaMask is locked → password prompt appears (good)
+  // If MetaMask is unlocked → approval popup appears (acceptable)
+  let accounts: string[];
+  try {
     accounts = await ethereum.request({
       method: 'eth_requestAccounts',
     }) as string[];
@@ -82,38 +103,44 @@ export async function connectMetaMask(): Promise<string> {
 
   const address = accounts[0].toLowerCase();
 
-  // Step 2: Create wallet client
+  // Step 4: Create wallet client for signing
   walletClient = createWalletClient({
     chain: mainnet,
     transport: custom(ethereum),
   });
 
-  // Step 3: MANDATORY SIGNATURE — this is the real authentication
-  // Generate a unique login challenge that can never be reused
+  // Step 5: MANDATORY SIGNATURE — the real authentication
+  // This popup ALWAYS appears regardless of MetaMask lock state.
+  // User must explicitly click "Sign" — no way to bypass.
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 15);
-  const loginMessage = `pmVPN Login\n\nTimestamp: ${timestamp}\nSession: ${random}\n\nSign this message to authenticate with pmVPN.\nThis does not cost gas or make any transaction.`;
+  const loginMessage = [
+    'pmVPN Login',
+    '',
+    `Timestamp: ${timestamp}`,
+    `Session: ${random}`,
+    '',
+    'Sign this message to authenticate with pmVPN.',
+    'This does not cost gas or make any transaction.',
+  ].join('\n');
 
   let signature: string;
   try {
-    // This ALWAYS shows a MetaMask popup requiring user approval
-    // The user must click "Sign" — there is no way to bypass this
     signature = await walletClient.signMessage({
       account: address as `0x${string}`,
       message: loginMessage,
     });
-  } catch (err: any) {
-    // User rejected the signature — NOT authenticated
+  } catch {
     walletClient = null;
-    throw new Error('Login signature rejected — authentication cancelled');
+    throw new Error('Signature rejected — login cancelled');
   }
 
-  // Step 4: Session is now proven — user explicitly signed
+  // Step 6: Session proven
   connectedAddress = address;
   sessionActive = true;
   sessionProof = signature;
 
-  return address;
+  return { address, wasLocked: wasLocked === true };
 }
 
 /**
@@ -125,23 +152,25 @@ export function getAddress(): string | null {
 }
 
 /**
- * Check if user has a verified session (address + signature).
+ * Check if user has a verified session.
  */
 export function isConnected(): boolean {
   return sessionActive && connectedAddress !== null && walletClient !== null && sessionProof !== null;
 }
 
 /**
- * Full logout — destroy everything.
+ * Logout — standard practice disconnect.
+ * Calls wallet_revokePermissions (official MetaMask method).
+ * Clears all session state. Cannot lock MetaMask — that's the user's action.
  */
 export async function disconnect(): Promise<void> {
-  // Kill session
+  // 1. Kill session
   sessionActive = false;
   walletClient = null;
   connectedAddress = null;
   sessionProof = null;
 
-  // Revoke MetaMask permissions
+  // 2. Revoke permissions (standard practice per MetaMask docs)
   if (hasMetaMask()) {
     try {
       await (window as any).ethereum.request({
@@ -151,12 +180,12 @@ export async function disconnect(): Promise<void> {
     } catch {}
   }
 
-  // Clear persisted data
+  // 3. Clear persisted data
   localStorage.removeItem('pmvpn-wallet-address');
 }
 
 /**
- * Fetch a challenge nonce from the pmVPN server.
+ * Fetch challenge nonce from pmVPN server.
  */
 export async function fetchChallenge(serverUrl: string, address: string): Promise<Challenge> {
   const res = await fetch(`${serverUrl}/challenge?address=${address}`);
@@ -168,8 +197,7 @@ export async function fetchChallenge(serverUrl: string, address: string): Promis
 }
 
 /**
- * Sign server challenge via MetaMask (for SSH auth payload).
- * Requires verified session. Shows MetaMask signing popup.
+ * Sign server challenge for SSH auth payload. Requires verified session.
  */
 export async function signAndBuildPayload(message: string, nonce: string): Promise<string> {
   if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
@@ -181,11 +209,7 @@ export async function signAndBuildPayload(message: string, nonce: string): Promi
     message,
   });
 
-  return JSON.stringify({
-    address: connectedAddress,
-    signature,
-    nonce,
-  });
+  return JSON.stringify({ address: connectedAddress, signature, nonce });
 }
 
 /**

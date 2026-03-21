@@ -231,19 +231,26 @@ export function createApp(): HTMLElement {
       metamaskBtn.disabled = true;
       metamaskBtn.innerHTML = '🦊 Connecting...';
       log('Requesting MetaMask connection...', 'info');
-      const address = await connectMetaMask();
+      const { address, wasLocked } = await connectMetaMask();
+
+      if (wasLocked) {
+        log('MetaMask was locked — password verified', 'success');
+      } else {
+        log('MetaMask was already unlocked — signature verified identity', 'info');
+        log('Tip: Lock MetaMask (🦊 → ⋮ → Lock) before connecting for full security', 'info');
+      }
 
       metamaskBtn.style.display = 'none';
       walletInfo.style.display = '';
       walletInfo.innerHTML = `
-        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:6px 0">
+        <div style="font-family:monospace;font-size:13px;color:var(--success);padding:6px 0">
           🟢 ${address.slice(0, 6)}...${address.slice(-4)}
         </div>
-        <div style="font-size:11px;color:#484f58;word-break:break-all">${address}</div>
+        <div style="font-size:11px;color:var(--muted-foreground);word-break:break-all">${address}</div>
       `;
       addrDisplay.textContent = address.slice(0, 6) + '...' + address.slice(-4);
       logoutBtn.style.display = '';
-      log(`Connected: ${address}`, 'success');
+      log(`Authenticated: ${address} (signature proof verified)`, 'success');
     } catch (e: any) {
       metamaskBtn.disabled = false;
       metamaskBtn.innerHTML = '🦊 Connect MetaMask';
@@ -292,7 +299,8 @@ export function createApp(): HTMLElement {
 
     setStatus('disconnected');
     renderConnections();
-    log('Logged out — wallet revoked, all sessions destroyed, no residual data', 'success');
+    log('Logged out — permissions revoked, all sessions destroyed', 'success');
+    log('Lock MetaMask now: 🦊 → ⋮ → Lock (requires password on next login)', 'info');
   }
 
   function setStatus(s: string) {

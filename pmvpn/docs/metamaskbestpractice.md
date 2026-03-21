@@ -6,9 +6,13 @@ Updated: 2026-03-21
 
 ---
 
-## The Hard Truth
+## Standard Practice
 
-**A dApp cannot force MetaMask to ask for its password.** MetaMask's internal lock is controlled by the user, not by websites. This is by design — it prevents malicious sites from locking users out of their wallet.
+**`wallet_revokePermissions`** is the official MetaMask method for disconnecting a dApp. This is standard practice per the [MetaMask documentation](https://docs.metamask.io/wallet/how-to/manage-permissions/).
+
+**MetaMask password** is controlled by the user, not by dApps. A dApp cannot lock MetaMask or force password re-entry. This is by design — it prevents malicious sites from locking users out of their wallet. The user should:
+- Set MetaMask auto-lock timer (Settings → Advanced → Auto-Lock Timer) to 1–5 minutes
+- Manually lock MetaMask after logging out of sensitive applications (🦊 → ⋮ → Lock)
 
 What a dApp CAN control:
 - Whether the dApp considers the user logged in (session state)
