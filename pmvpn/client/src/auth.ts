@@ -62,9 +62,24 @@ export function isConnected(): boolean {
 }
 
 /**
- * Disconnect wallet.
+ * Disconnect wallet — true logout.
+ * Revokes MetaMask permission so the user must re-approve on next connect.
+ * Clears all in-memory wallet state.
  */
-export function disconnect(): void {
+export async function disconnect(): Promise<void> {
+  // Revoke MetaMask permission (EIP-2255 wallet_revokePermissions)
+  // This forces MetaMask to forget this site — next connect requires full approval
+  if (hasMetaMask()) {
+    try {
+      await (window as any).ethereum.request({
+        method: 'wallet_revokePermissions',
+        params: [{ eth_accounts: {} }],
+      });
+    } catch {
+      // Older MetaMask versions may not support this — fall through
+    }
+  }
+
   walletClient = null;
   connectedAddress = null;
 }

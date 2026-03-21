@@ -251,8 +251,8 @@ export function createApp(): HTMLElement {
     }
   }
 
-  // ── Logout — full disconnect ──
-  function doLogout() {
+  // ── Logout — true logout, no trace ──
+  async function doLogout() {
     // Disconnect all sessions
     for (const conn of connections) {
       conn.status = 'offline';
@@ -266,9 +266,15 @@ export function createApp(): HTMLElement {
     placeholder.style.display = '';
     payloadSection.style.display = 'none';
 
-    // Disconnect wallet
-    disconnect();
+    // Revoke MetaMask permission + clear wallet state
+    await disconnect();
+
+    // Clear any cached wallet data from localStorage
+    localStorage.removeItem('pmvpn-wallet-address');
+
+    // Reset UI completely
     walletInfo.style.display = 'none';
+    walletInfo.innerHTML = '';
     metamaskBtn.style.display = '';
     metamaskBtn.disabled = false;
     metamaskBtn.innerHTML = '🦊 Connect MetaMask';
@@ -277,7 +283,7 @@ export function createApp(): HTMLElement {
 
     setStatus('disconnected');
     renderConnections();
-    log('Logged out — wallet disconnected, all sessions cleared', 'success');
+    log('Logged out — MetaMask permission revoked, all sessions cleared', 'success');
   }
 
   function setStatus(s: string) {
@@ -364,9 +370,9 @@ export function createApp(): HTMLElement {
   }
 
   // MetaMask account changes
-  onAccountChange((accounts) => {
+  onAccountChange((accounts: string[]) => {
     if (accounts.length === 0) {
-      doLogout();
+      doLogout().catch(() => {});
     } else {
       const addr = accounts[0].toLowerCase();
       walletInfo.innerHTML = `
