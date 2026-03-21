@@ -3,12 +3,6 @@
 
 <p align="center">
   <a href="pmvpn/">
-    <img src="poormansvpn.jpg" alt="Poor Man's VPN" width="480" style="border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 120px rgba(88,166,255,0.15); transform: perspective(800px) rotateY(-2deg) rotateX(1deg); border: 1px solid rgba(88,166,255,0.2);" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="pmvpn/">
     <img src="poormanvpn.jpg" alt="pmVPN Architecture" width="380" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 80px rgba(63,185,80,0.1); transform: perspective(800px) rotateY(2deg) rotateX(-1deg); border: 1px solid rgba(63,185,80,0.2); margin-top: 12px;" />
   </a>
 </p>
