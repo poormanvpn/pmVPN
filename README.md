@@ -1,4 +1,4 @@
-<h1 align="center">poormanvpn</h1>
+<h1 align="center">poormanVPN</h1>
 <p align="center"><em>Wallet-authenticated remote access for the sovereign internet</em></p>
 
 <div align="center">
