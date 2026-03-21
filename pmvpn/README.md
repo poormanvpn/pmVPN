@@ -2,7 +2,11 @@
 <p align="center"><em>Poor Man's VPN — Wallet-Authenticated Remote Access</em></p>
 
 <p align="center">
-  <img src="../poormansvpn.jpg" alt="pmVPN" width="280" />
+  <img src="../poormansvpn.jpg" alt="pmVPN" width="440" style="border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 100px rgba(88,166,255,0.15); transform: perspective(800px) rotateY(-1.5deg) rotateX(1deg); border: 1px solid rgba(88,166,255,0.2);" />
+</p>
+
+<p align="center">
+  <img src="../agenticplace.jpg" alt="AgenticPlace" width="340" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 80px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1.5deg) rotateX(-0.5deg); border: 1px solid rgba(188,140,255,0.2); margin-top: 8px;" />
 </p>
 
 ---
@@ -235,10 +239,30 @@ pmVPN stands on the shoulders of projects and people who built the infrastructur
 
 ## Contributors
 
-| | Contributor | Role |
-|---|---|---|
-| <img src="https://github.com/Professor-Codephreak.png" width="40" /> | **[@Professor-Codephreak](https://github.com/Professor-Codephreak)** | The idea that a wallet key is the login key. cSSHwallet prototypes, bankon-greeter auth pattern, cypherpunk2048 protocol, PARSEC Wallet, bankonOS |
-| <img src="https://github.com/Web3dGuy.png" width="40" /> | **[@Web3dGuy](https://github.com/Web3dGuy)** | The idea that a wallet key is the login key. Wallet-authenticated SSH concept and development |
+<p align="center"><em>The idea that a wallet key is the login key</em></p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="320">
+      <a href="https://github.com/Professor-Codephreak">
+        <img src="https://github.com/Professor-Codephreak.png" width="100" style="border-radius: 50%; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(88,166,255,0.2); border: 2px solid rgba(88,166,255,0.3);" />
+      </a>
+      <br />
+      <strong><a href="https://github.com/Professor-Codephreak">Professor Codephreak</a></strong>
+      <br />
+      <sub>Wallet-as-login-key concept · cSSHwallet prototypes<br />bankon-greeter auth · cypherpunk2048 · PARSEC · bankonOS</sub>
+    </td>
+    <td align="center" width="320">
+      <a href="https://github.com/Web3dGuy">
+        <img src="https://github.com/Web3dGuy.png" width="100" style="border-radius: 50%; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(63,185,80,0.2); border: 2px solid rgba(63,185,80,0.3);" />
+      </a>
+      <br />
+      <strong><a href="https://github.com/Web3dGuy">Web3dGuy</a></strong>
+      <br />
+      <sub>Wallet-as-login-key concept<br />Wallet-authenticated SSH · 3D immersive web · Web3</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
