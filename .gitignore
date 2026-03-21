@@ -5,3 +5,5 @@ target/
 *.log
 pnpm-lock.yaml
 .DS_Store
+*.jpeg
+*.zip

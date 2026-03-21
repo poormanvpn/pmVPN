@@ -1,1 +1,0 @@
-BONA FIDE reputation module.

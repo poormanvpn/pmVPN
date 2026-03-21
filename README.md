@@ -1,10 +1,20 @@
 <h1 align="center">poormanVPN</h1>
-<p align="center"><em>Wallet-authenticated remote access for the sovereign internet</em></p>
+
+<p align="center">
+  <strong>Eight ports. One wallet. Zero trust required.</strong>
+</p>
+
+<p align="center">
+  Wallet-authenticated SSH infrastructure with integrated VPN tunneling.<br />
+  Terminal. File transfer. TCP/UDP/DNS proxy. Claude AI. All from a handheld interface.
+</p>
+
+<br />
 
 <div align="center">
   <a href="pmvpn/">
     <picture>
-      <img src="poormanvpn.jpg" alt="pmVPN" width="460" style="
+      <img src="poormanvpn.jpg" alt="pmVPN" width="480" style="
         border-radius: 20px;
         box-shadow:
           0 25px 80px rgba(0,0,0,0.7),
@@ -12,7 +22,6 @@
           inset 0 1px 0 rgba(255,255,255,0.08);
         transform: perspective(1200px) rotateY(2.5deg) rotateX(-1.5deg) translateZ(20px);
         border: 1px solid rgba(63,185,80,0.25);
-        transition: transform 0.4s ease, box-shadow 0.4s ease;
       " />
     </picture>
   </a>
@@ -20,147 +29,157 @@
 
 <br />
 
----
-
-> *The poor man doesn't need a VPN provider. He needs SSH, a wallet, and a machine that listens.*
-
----
-
-## The Project
-
-poormanvpn is infrastructure for people who run their own machines. It provides encrypted remote access — terminal, file transfer, VPN tunneling — authenticated by cryptocurrency wallet signature instead of passwords or SSH keys.
-
-No accounts to create. No services to subscribe to. No third party between you and your machine. Your wallet is your identity. Your signature is your proof.
-
-The project encompasses:
-
-| Component | Description | License |
-|-----------|-------------|---------|
-| **[pmVPN](pmvpn/)** | Wallet-authenticated SSH server + Parsec client module | MIT server · GPL client |
-| **[sshuttle fork](https://github.com/poormanvpn/sshuttle)** | Reference: the original "poor man's VPN" by Avery Pennarun | LGPL |
-| **[REP/BONA FIDE](rep_bonafide_module/)** | On-chain reputation and governance module | — |
+<p align="center">
+  <a href="pmvpn/"><strong>Documentation</strong></a> ·
+  <a href="pmvpn/docs/DEPLOYMENT.md"><strong>Deploy</strong></a> ·
+  <a href="pmvpn/docs/PROTOCOL.md"><strong>Protocol</strong></a> ·
+  <a href="pmvpn/docs/BOOTSTRAP.md"><strong>Bootstrap</strong></a> ·
+  <a href="https://agenticplace.pythai.net"><strong>AgenticPlace</strong></a>
+</p>
 
 ---
 
-## Why
+Your wallet is your SSH key. Your signature is your password. pmVPN replaces traditional remote access credentials with Ethereum wallet signatures — cryptographic identity that works the same whether you are at home, in transit, or on a phone in another country. No passwords to remember. No key files to manage. No VPN provider standing between you and your machine.
 
-Traditional remote access requires managing SSH keys, remembering passwords, configuring authorized_keys files, rotating credentials. VPN services require subscriptions, trust in providers, and client software that phones home.
+The server opens eight dedicated ports — interactive shell, SFTP, command execution, authentication API, VPN tunnel, file synchronization, Claude AI proxy, and administration. Each port serves one purpose. All traffic flows through SSH encrypted with Ed25519, curve25519-sha256, and chacha20-poly1305. The authentication is a single wallet signature verified locally via [viem](https://viem.sh/) — no blockchain RPC, no external service, no network dependency.
 
-A cryptocurrency wallet already contains everything needed for secure authentication:
-- A **private key** you control
-- A **public address** that identifies you
-- A **signature** that proves possession without revealing the key
+The client is a module of [PARSEC Wallet](https://github.com/cypherpunk2048/parsec-wallet). Vanilla TypeScript. Tauri 2 with Rust backend. xterm.js terminal. Wallet signing in Rust memory via bankon_vault (Argon2id + AES-256-GCM). Private keys never leave the vault. On lock, all sessions disconnect and signing keys are zeroized.
 
-pmVPN uses this. Connect your wallet. Sign a challenge. You're in.
+The VPN tunnel uses the [PM Protocol](pmvpn/docs/PROTOCOL.md) — an in-house binary multiplexing protocol inspired by [sshuttle](https://github.com/poormanvpn/sshuttle). TCP, UDP, and DNS streams share a single SSH channel through 8-byte framed messages with 16-bit channel IDs. Up to 65,535 concurrent streams. Flow control at 32KB. No Python. No root on the server.
 
----
-
-## Architecture
-
-```
-  You (anywhere)                              Your Machine (anywhere)
-  ┌──────────────────┐                        ┌──────────────────────┐
-  │  PARSEC Wallet    │    Wallet Signature    │  pmVPN Server        │
-  │  + pmVPN module   │ ═══════════════════► │                      │
-  │                   │                        │  8 ports:            │
-  │  ● Terminal       │    SSH (encrypted)     │  ├─ Shell            │
-  │  ● File Manager   │ ◄══════════════════► │  ├─ SFTP             │
-  │  ● VPN Tunnel     │                        │  ├─ Exec             │
-  │                   │    PM Protocol         │  ├─ VPN Tunnel       │
-  │  Desktop / Mobile │ ◄══════════════════► │  ├─ File Sync        │
-  │  (Tauri)          │    TCP/UDP/DNS mux     │  ├─ Claude AI        │
-  └──────────────────┘                        │  └─ Admin            │
-                                               │                      │
-                                               │  Ed25519 · chacha20  │
-                                               │  No RSA · No NIST    │
-                                               └──────────────────────┘
-```
+Four server dependencies. No Express. No WebSocket library. Minimal attack surface on a hostile internet.
 
 ---
 
-## Components
+<div align="center">
 
-### pmVPN Server
+### Install
 
-Node.js/TypeScript SSH server. Four dependencies. Hardened cryptography. Runs on any Linux machine or VPS.
-
-- **Wallet authentication** via [viem](https://viem.sh/) signature verification
-- **8 dedicated ports** per host (shell, SFTP, exec, API, tunnel, sync, Claude, admin)
-- **VPN tunneling** via the PM binary protocol (TCP/UDP/DNS multiplexing over SSH)
-- **PTY shells** via [node-pty](https://github.com/microsoft/node-pty) — real terminal emulation
-- **SSH hardening** — Ed25519 only, curve25519-sha256, chacha20-poly1305
-
-### pmVPN Client (PARSEC Module)
-
-Vanilla TypeScript + Rust (Tauri 2). Integrates into [PARSEC Wallet](https://github.com/cypherpunk2048/parsec-wallet).
-
-- **Terminal** via [xterm.js](https://xtermjs.org/) — full terminal emulation in the wallet
-- **Wallet signing** in Rust memory via [bankon_vault](https://github.com/cypherpunk2048/parsec-wallet) (Argon2id + AES-256-GCM)
-- **Multi-host** — connect to multiple machines simultaneously
-- **Mobile-ready** — Tauri targets Android and iOS
-
-### REP/BONA FIDE
-
-Optional reputation and governance layer. Dignitas scoring, BONA token, Senate governance, dispute resolution. Future integration for trust networks between pmVPN nodes.
-
----
-
-## Quick Start
+</div>
 
 ```bash
-# Server
-cd pmvpn/server
+git clone https://github.com/poormanvpn/pmVPN.git
+cd pmVPN/pmvpn/server
 pnpm install
-WALLET_USER_MAP="0xYourAddr:username" pnpm run dev
-
-# Verify
-curl http://localhost:2203/status
+WALLET_USER_MAP="0xYourWalletAddress:username" pnpm run dev
 ```
 
-See [pmVPN documentation](pmvpn/docs/) for deployment, bootstrapping, and protocol details.
+```bash
+curl http://localhost:2203/status
+# → { "version": "0.1.0", "uptime": 0, "wallets": 1 }
+```
+
+Eight ports bind on startup. Ed25519 host key auto-generated. Ready to accept wallet-authenticated connections.
 
 ---
 
-## Documentation
+<div align="center">
 
-| Document | Path |
-|----------|------|
-| **pmVPN README** | [pmvpn/README.md](pmvpn/README.md) |
-| **PM Protocol Spec** | [pmvpn/docs/PROTOCOL.md](pmvpn/docs/PROTOCOL.md) |
-| **Deployment Guide** | [pmvpn/docs/DEPLOYMENT.md](pmvpn/docs/DEPLOYMENT.md) |
-| **Bootstrap Guide** | [pmvpn/docs/BOOTSTRAP.md](pmvpn/docs/BOOTSTRAP.md) |
-| **Client Module** | [pmvpn/docs/CLIENT.md](pmvpn/docs/CLIENT.md) |
-| **Development Plan** | [pmvpn/docs/DEVELOPMENT.md](pmvpn/docs/DEVELOPMENT.md) |
+### What You Get
 
----
+</div>
 
-## Heritage
-
-The poor man's VPN is not a new idea. It is an old one, refined.
-
-**[OpenSSH](https://www.openssh.com/)** built the tunnel. Every encrypted connection in pmVPN flows through algorithms the OpenBSD team chose, audited, and defended. Ed25519 because Daniel J. Bernstein's curves are trustworthy. chacha20-poly1305 because constant-time matters. *The foundation.*
-
-**[sshuttle](https://github.com/sshuttle/sshuttle)** by Avery Pennarun named the concept. A transparent proxy over SSH. No root on the server. No kernel modules. Just Python, iptables, and a clever binary protocol. The PM Protocol in pmVPN is a direct descendant — reimplemented in TypeScript, same spirit. *The inspiration.*
-
-**[Paramiko](https://www.paramiko.org/)** powered the ten cSSHwallet prototypes that preceded pmVPN. Jeff Forcier's Python SSH library made it possible to experiment with wallet signatures as SSH credentials. Those experiments proved the idea works. *The laboratory.*
-
-**[Brian White](https://github.com/mscdex)** wrote ssh2 — the pure JavaScript SSH2 implementation that pmVPN's server is built on. Thousands of lines of protocol handling so we didn't have to write them. *The engine.*
-
-**[viem](https://viem.sh/)** by the wevm team made Ethereum signature verification a one-line operation. Pure local secp256k1 recovery. No RPC calls. *The verifier.*
-
-**[Tauri](https://tauri.app/)** proved that native apps don't need Electron. Rust backend, system webview, 10MB instead of 300MB. The architecture for shipping pmVPN to phones. *The vehicle.*
-
-**[PARSEC Wallet](https://github.com/parsec-wallet)** and **[bankonOS](https://github.com/cypherpunk2048)** are the ecosystem pmVPN was built for. Sovereign Algorand wallet. Self-sovereign banking OS. Crypto-ssh authentication. bankon_vault encrypted key storage. The pattern that wallet signatures can replace passwords was proven here first. *The home.*
-
-**[RustCrypto](https://github.com/RustCrypto)** — k256 for secp256k1, sha3 for keccak256. Private key operations in Rust memory. Never in JavaScript. *The shield.*
+| Port | Service | What It Does |
+|:----:|---------|--------------|
+| +0 | **Shell** | Interactive terminal. Run Claude, bash, vim, htop — real PTY via node-pty |
+| +1 | **SFTP** | File transfer. Browse, upload, download remote filesystem |
+| +2 | **Exec** | Non-interactive commands. Scripting, automation, health checks |
+| +3 | **Auth** | Challenge nonce endpoint. Client fetches here before SSH connect |
+| +4 | **Tunnel** | VPN. Multiplexed TCP/UDP/DNS over SSH. 65K concurrent streams |
+| +5 | **Sync** | Bidirectional file synchronization |
+| +6 | **Claude** | Dedicated AI assistant channel. Run Claude on remote machines |
+| +7 | **Admin** | Server health, active sessions, connection metrics |
 
 ---
 
-## License
+<div align="center">
 
-- **Server**: MIT — deploy anywhere, no restrictions
-- **Client**: GPL-3.0 — user freedom protected
-- **Shared types**: MIT
+### How Authentication Works
+
+</div>
+
+```
+  Wallet ────── sign challenge ──────► SSH connect ────── verify signature ──────► Shell
+    │                                      │                                        │
+    │  "PMVPN:<nonce>:<timestamp>"         │  password = { address,                 │  PTY
+    │  signed with secp256k1               │    signature, nonce }                  │  spawned
+    │  key never leaves vault              │  single-use nonce                      │  as user
+```
+
+No blockchain. No RPC. No external service. `viem.verifyMessage()` recovers the signer address from the signature using pure local elliptic curve math. The nonce is 32 random bytes with a 60-second lifetime, deleted after one use.
+
+---
+
+<div align="center">
+
+### Self-Installation
+
+</div>
+
+pmVPN can [bootstrap its own server](pmvpn/docs/BOOTSTRAP.md) onto any machine you can reach.
+
+| You Have | pmVPN Does |
+|----------|------------|
+| Regular SSH login | Installs in `~/`, runs on ports 8200+, no admin needed |
+| sudo access | Installs to `/opt/`, standard ports 2200+, systemd service |
+| Any shell (container, console) | ssh2 IS the SSH server — no OpenSSH required |
+
+Upload via SFTP. Execute via SSH. The server starts. Connect with your wallet.
+
+---
+
+<div align="center">
+
+### Security
+
+</div>
+
+| | |
+|:--|:--|
+| **Algorithms** | Ed25519 · curve25519-sha256 · chacha20-poly1305 · keccak256 |
+| **Rejected** | RSA · NIST curves · agent forwarding · X11 · password fallback |
+| **Vault** | Argon2id + AES-256-GCM in Rust memory · zeroized on lock |
+| **Nonces** | In-memory only · 60s TTL · single-use · 1000 hard cap |
+| **Dependencies** | ssh2 · node-pty · viem · pino — four packages, all MIT |
+
+Thank [OpenBSD](https://www.openssh.com/).
+
+---
+
+<div align="center">
+
+### Documentation
+
+</div>
+
+| | |
+|:--|:--|
+| **[pmVPN Technical README](pmvpn/README.md)** | Complete reference — architecture, auth flow, security model, configuration, file structure, dependency audit, cryptographic primitives |
+| **[PM Protocol Specification](pmvpn/docs/PROTOCOL.md)** | Binary wire format, command codes, channel lifecycle, flow control, security considerations |
+| **[Deployment Guide](pmvpn/docs/DEPLOYMENT.md)** | Production setup — systemd, Docker, firewall, wallet map, monitoring, security checklist |
+| **[Bootstrap Guide](pmvpn/docs/BOOTSTRAP.md)** | Self-installation from SSH/SFTP, zero-SSH containers, key exchange, authorized_keys handling |
+| **[Client Module](pmvpn/docs/CLIENT.md)** | PARSEC integration — UI, connection flow, Tauri commands, escalation levels |
+| **[Development Roadmap](pmvpn/docs/DEVELOPMENT.md)** | Eight phases, checklist status, dependency inventory, reference corpus |
+
+---
+
+<div align="center">
+
+### Heritage
+
+</div>
+
+**[OpenSSH](https://www.openssh.com/)** — the foundation. **[sshuttle](https://github.com/sshuttle/sshuttle)** — the [inspiration](https://github.com/poormanvpn/sshuttle). **[Paramiko](https://www.paramiko.org/)** — the laboratory. **[ssh2](https://github.com/mscdex/ssh2)** — the engine. **[viem](https://viem.sh/)** — the verifier. **[Tauri](https://tauri.app/)** — the vehicle. **[PARSEC](https://github.com/cypherpunk2048/parsec-wallet)** & **[bankonOS](https://github.com/cypherpunk2048)** — the home. **[RustCrypto](https://github.com/RustCrypto)** — the shield.
+
+---
+
+<div align="center">
+
+### License
+
+**Server**: MIT — deploy anywhere &nbsp;·&nbsp; **Client**: GPL-3.0 — user freedom protected &nbsp;·&nbsp; **Shared**: MIT
+
+</div>
 
 ---
 
