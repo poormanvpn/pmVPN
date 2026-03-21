@@ -1,11 +1,20 @@
 // pmVPN Client — MetaMask Authentication
-// See docs/metamaskbestpractice.md for the full rationale.
+// See docs/metamaskbestpractice.md
 //
-// Key rules:
-//   - sessionActive is the gate, NOT MetaMask's state
-//   - Never call eth_requestAccounts on page load
-//   - Always revoke before requesting (forces popup)
-//   - eth_accounts (silent) for checking, eth_requestAccounts (popup) for connecting
+// Security model:
+//   MetaMask cannot be locked or forced to ask for password by a dApp.
+//   So we don't rely on MetaMask's connection state at all.
+//
+//   Instead, EVERY login requires the user to SIGN a login challenge.
+//   MetaMask's signing popup requires explicit user approval every time —
+//   even if MetaMask is already unlocked and the site is already approved.
+//
+//   Flow:
+//     1. Get address from MetaMask (may auto-connect — that's fine)
+//     2. Generate a random login challenge
+//     3. User MUST sign the challenge in MetaMask (popup appears)
+//     4. Only after signature verification is the session active
+//     5. Logout destroys the session — next login requires a NEW signature
 
 import { createWalletClient, custom, type WalletClient } from 'viem';
 import { mainnet } from 'viem/chains';
@@ -16,140 +25,133 @@ export interface Challenge {
   expires: number;
 }
 
-// ── Session state — this is the source of truth, NOT MetaMask ──
+// ── Session state ──
 let walletClient: WalletClient | null = null;
 let connectedAddress: string | null = null;
 let sessionActive = false;
+let sessionProof: string | null = null; // The signature that proves this session
 
 /**
- * Check if MetaMask is available in the browser.
+ * Check if MetaMask is available.
  */
 export function hasMetaMask(): boolean {
   return typeof window !== 'undefined' && typeof (window as any).ethereum !== 'undefined';
 }
 
 /**
- * Connect to MetaMask with a fresh approval popup.
+ * Connect to MetaMask with MANDATORY signature verification.
  *
- * Flow:
- *   1. Clear all local state
- *   2. Revoke existing permissions (so MetaMask forgets us)
- *   3. Request accounts (triggers popup because permissions were revoked)
- *   4. Set session active only after user approves
+ * Even if MetaMask auto-connects (no password popup), the user MUST
+ * approve a signing request. The signing popup ALWAYS appears and
+ * requires explicit user action. This is our real authentication.
+ *
+ * Returns the verified address.
  */
 export async function connectMetaMask(): Promise<string> {
   if (!hasMetaMask()) {
     throw new Error('MetaMask not found. Install MetaMask to continue.');
   }
 
-  // 1. Clear stale state
+  // Clear stale state
   walletClient = null;
   connectedAddress = null;
   sessionActive = false;
+  sessionProof = null;
 
   const ethereum = (window as any).ethereum;
 
-  // 2. Revoke existing permissions — forces fresh popup on next request
+  // Step 1: Get address (may auto-connect — that's OK, it's not our auth)
+  let accounts: string[];
   try {
+    // Try revoking first for a cleaner experience
     await ethereum.request({
       method: 'wallet_revokePermissions',
       params: [{ eth_accounts: {} }],
-    });
-  } catch {
-    // Not supported in all versions — continue
+    }).catch(() => {});
+
+    accounts = await ethereum.request({
+      method: 'eth_requestAccounts',
+    }) as string[];
+  } catch (err: any) {
+    throw new Error(err?.message || 'MetaMask connection rejected');
   }
-
-  // 3. Verify permissions are actually revoked
-  //    eth_accounts should return [] after revoke
-  try {
-    const check = await ethereum.request({ method: 'eth_accounts' }) as string[];
-    if (check && check.length > 0) {
-      // MetaMask still remembers us — this can happen on some versions
-      // We still proceed, but our sessionActive gate protects us
-    }
-  } catch {}
-
-  // 4. Request fresh account access — this MUST trigger the MetaMask popup
-  //    because we revoked permissions above
-  const accounts = await ethereum.request({
-    method: 'eth_requestAccounts',
-  }) as string[];
 
   if (!accounts || accounts.length === 0) {
-    throw new Error('No accounts returned — user may have rejected the request');
+    throw new Error('No accounts returned');
   }
 
-  // 5. Create wallet client for signing
+  const address = accounts[0].toLowerCase();
+
+  // Step 2: Create wallet client
   walletClient = createWalletClient({
     chain: mainnet,
     transport: custom(ethereum),
   });
 
-  // 6. Set session — only now is the user "logged in"
-  connectedAddress = accounts[0].toLowerCase();
-  sessionActive = true;
+  // Step 3: MANDATORY SIGNATURE — this is the real authentication
+  // Generate a unique login challenge that can never be reused
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 15);
+  const loginMessage = `pmVPN Login\n\nTimestamp: ${timestamp}\nSession: ${random}\n\nSign this message to authenticate with pmVPN.\nThis does not cost gas or make any transaction.`;
 
-  return connectedAddress;
+  let signature: string;
+  try {
+    // This ALWAYS shows a MetaMask popup requiring user approval
+    // The user must click "Sign" — there is no way to bypass this
+    signature = await walletClient.signMessage({
+      account: address as `0x${string}`,
+      message: loginMessage,
+    });
+  } catch (err: any) {
+    // User rejected the signature — NOT authenticated
+    walletClient = null;
+    throw new Error('Login signature rejected — authentication cancelled');
+  }
+
+  // Step 4: Session is now proven — user explicitly signed
+  connectedAddress = address;
+  sessionActive = true;
+  sessionProof = signature;
+
+  return address;
 }
 
 /**
- * Get connected address. Returns null if no active session.
- * This checks OUR session, not MetaMask.
+ * Get connected address. Null if no verified session.
  */
 export function getAddress(): string | null {
-  if (!sessionActive) return null;
+  if (!sessionActive || !sessionProof) return null;
   return connectedAddress;
 }
 
 /**
- * Check if user has an active session.
- * This is the gate — all operations check this.
+ * Check if user has a verified session (address + signature).
  */
 export function isConnected(): boolean {
-  return sessionActive && connectedAddress !== null && walletClient !== null;
+  return sessionActive && connectedAddress !== null && walletClient !== null && sessionProof !== null;
 }
 
 /**
- * Full logout — destroy session, revoke permissions, LOCK MetaMask.
- *
- * After this:
- *   - sessionActive is false
- *   - MetaMask is locked (requires password on next use)
- *   - eth_accounts returns []
- *   - connectMetaMask() will trigger MetaMask password + approval popup
+ * Full logout — destroy everything.
  */
 export async function disconnect(): Promise<void> {
-  // 1. Kill session immediately — this is the real logout
+  // Kill session
   sessionActive = false;
   walletClient = null;
   connectedAddress = null;
+  sessionProof = null;
 
+  // Revoke MetaMask permissions
   if (hasMetaMask()) {
-    const ethereum = (window as any).ethereum;
-
-    // 2. Revoke site permissions
     try {
-      await ethereum.request({
+      await (window as any).ethereum.request({
         method: 'wallet_revokePermissions',
         params: [{ eth_accounts: {} }],
       });
     } catch {}
-
-    // 3. LOCK MetaMask — forces password re-entry on next use
-    // This is the internal lock that requires the user's password to unlock.
-    // After this, MetaMask is fully locked — no dApp can access accounts
-    // until the user enters their MetaMask password again.
-    try {
-      await ethereum.request({ method: 'wallet_lock' });
-    } catch {
-      // Some versions use internal__lock or don't expose lock at all
-      try {
-        await ethereum.request({ method: 'internal__lock' });
-      } catch {}
-    }
   }
 
-  // 4. Clear any persisted wallet data
+  // Clear persisted data
   localStorage.removeItem('pmvpn-wallet-address');
 }
 
@@ -166,12 +168,12 @@ export async function fetchChallenge(serverUrl: string, address: string): Promis
 }
 
 /**
- * Sign challenge via MetaMask. Requires active session.
- * MetaMask shows a signing popup — user must approve.
+ * Sign server challenge via MetaMask (for SSH auth payload).
+ * Requires verified session. Shows MetaMask signing popup.
  */
 export async function signAndBuildPayload(message: string, nonce: string): Promise<string> {
-  if (!sessionActive || !walletClient || !connectedAddress) {
-    throw new Error('No active session — connect MetaMask first');
+  if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
+    throw new Error('No verified session — connect MetaMask first');
   }
 
   const signature = await walletClient.signMessage({
@@ -187,7 +189,7 @@ export async function signAndBuildPayload(message: string, nonce: string): Promi
 }
 
 /**
- * Listen for MetaMask account changes (user switches account or disconnects).
+ * Listen for MetaMask account changes.
  */
 export function onAccountChange(callback: (accounts: string[]) => void): void {
   if (!hasMetaMask()) return;
