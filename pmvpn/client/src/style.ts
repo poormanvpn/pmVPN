@@ -288,6 +288,146 @@ textarea.pmvpn-input {
 .pmvpn-flow-step strong {
   color: #c9d1d9;
 }
+
+/* Header */
+.pmvpn-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pmvpn-addr-display {
+  font-family: monospace;
+  font-size: 12px;
+  color: #3fb950;
+}
+
+/* Logout button — always visible, unmistakable */
+.pmvpn-btn-logout {
+  padding: 6px 16px;
+  background: transparent;
+  border: 1px solid #da3633;
+  border-radius: 6px;
+  color: #da3633;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+}
+
+.pmvpn-btn-logout:hover {
+  background: #da3633;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(218,54,51,0.3);
+}
+
+/* Connection list */
+.pmvpn-conn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pmvpn-conn-header h3 {
+  margin: 0;
+}
+
+.pmvpn-btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #21262d;
+  background: #161b22;
+  color: #c9d1d9;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.pmvpn-btn-icon:hover {
+  background: #21262d;
+  border-color: #30363d;
+}
+
+.pmvpn-btn-remove {
+  color: #484f58;
+  font-size: 16px;
+}
+
+.pmvpn-btn-remove:hover {
+  color: #f85149;
+  border-color: #f85149;
+}
+
+.pmvpn-conn-list {
+  margin-top: 8px;
+}
+
+.pmvpn-conn-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.pmvpn-conn-item:hover { background: #161b22; }
+.pmvpn-conn-item.active { background: #1c2128; border-left-color: #58a6ff; }
+.pmvpn-conn-item.connected .pmvpn-conn-status { color: #3fb950; }
+.pmvpn-conn-item.error .pmvpn-conn-status { color: #f85149; }
+
+.pmvpn-conn-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pmvpn-conn-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: #c9d1d9;
+}
+
+.pmvpn-conn-addr {
+  font-size: 11px;
+  color: #484f58;
+  font-family: monospace;
+}
+
+.pmvpn-conn-status {
+  font-size: 10px;
+  color: #484f58;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Add form */
+.pmvpn-add-form {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #21262d;
+}
+
+.pmvpn-add-form .pmvpn-input {
+  margin-bottom: 6px;
+}
+
+.pmvpn-form-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.pmvpn-form-btns .pmvpn-btn {
+  flex: 1;
+}
 `;
 
 export function injectStyles(): void {

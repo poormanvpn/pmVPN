@@ -2,31 +2,42 @@
 // GPL-3.0
 //
 // Login flow:
-//   1. User clicks "Connect MetaMask" → MetaMask popup asks permission
-//   2. MetaMask returns the user's public address (no key exposed)
-//   3. User enters server host:port and clicks "Connect"
-//   4. Client fetches a challenge nonce from server (port +3)
-//   5. Client asks MetaMask to sign the challenge → MetaMask popup
-//   6. MetaMask returns the signature (private key never leaves MetaMask)
-//   7. Client builds auth payload: { address, signature, nonce }
-//   8. Payload is used as the SSH password for wallet-authenticated login
+//   1. Click "Connect MetaMask" → MetaMask popup → returns address only
+//   2. Add connections (local + remote) with + button
+//   3. Click connection → fetch challenge → MetaMask signs → payload ready
+//   4. Paste payload as SSH password, or use WebSocket terminal
+//   5. Click "Logout" → clears all sessions, disconnects wallet completely
 //
-// The private key NEVER touches this application.
-// MetaMask handles all signing. We only see the address and signature.
+// Private key NEVER touches this application.
 
 import { injectStyles } from './style';
 import { hasMetaMask, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
 injectStyles();
 
+interface Connection {
+  id: string;
+  name: string;
+  host: string;
+  port: string;
+  status: 'offline' | 'connected' | 'error';
+  payload: string | null;
+}
+
 let term: TerminalInstance | null = null;
 let logEl: HTMLElement;
-const S = {
-  host: localStorage.getItem('pmvpn-host') || 'localhost',
-  port: localStorage.getItem('pmvpn-port') || '2200',
-  status: 'disconnected',
-  payload: null as string | null,
-};
+let connections: Connection[] = JSON.parse(localStorage.getItem('pmvpn-connections') || '[]');
+let activeConnId: string | null = null;
+
+// Ensure localhost default exists
+if (!connections.find(c => c.host === 'localhost' && c.port === '2200')) {
+  connections.unshift({ id: 'local', name: 'Local Server', host: 'localhost', port: '2200', status: 'offline', payload: null });
+  saveConnections();
+}
+
+function saveConnections() {
+  localStorage.setItem('pmvpn-connections', JSON.stringify(connections.map(c => ({ ...c, status: 'offline', payload: null }))));
+}
 
 function log(m: string, l = '') {
   const e = document.createElement('div');
@@ -47,14 +58,23 @@ export function createApp(): HTMLElement {
   const root = mk('div');
   root.style.cssText = 'display:flex;flex-direction:column;height:100vh';
 
-  // Header
-  const header = mk('div', 'pmvpn-header', `
+  // ── Header with Logout ──
+  const header = mk('div', 'pmvpn-header');
+  header.innerHTML = `
     <div>
       <div class="pmvpn-title">pmVPN</div>
       <div class="pmvpn-subtitle">WALLET-AUTHENTICATED REMOTE ACCESS</div>
     </div>
-    <div class="pmvpn-subtitle" id="pa"></div>
-  `);
+  `;
+  const headerRight = mk('div', 'pmvpn-header-right');
+  const addrDisplay = mk('span', 'pmvpn-addr-display');
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'pmvpn-btn-logout';
+  logoutBtn.textContent = 'Logout';
+  logoutBtn.style.display = 'none';
+  logoutBtn.addEventListener('click', doLogout);
+  headerRight.append(addrDisplay, logoutBtn);
+  header.appendChild(headerRight);
 
   const body = mk('div', 'pmvpn-body');
   const sidebar = mk('div', 'pmvpn-sidebar');
@@ -62,7 +82,6 @@ export function createApp(): HTMLElement {
 
   // ── Wallet Section ──
   const walletSection = mk('div', 'pmvpn-section', '<h3>Wallet</h3>');
-
   const metamaskBtn = document.createElement('button');
   metamaskBtn.className = 'pmvpn-btn pmvpn-btn-metamask';
   metamaskBtn.innerHTML = '🦊 Connect MetaMask';
@@ -71,68 +90,68 @@ export function createApp(): HTMLElement {
   const walletInfo = mk('div', 'pmvpn-wallet-info');
   walletInfo.style.display = 'none';
 
-  const disconnectWalletBtn = document.createElement('button');
-  disconnectWalletBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
-  disconnectWalletBtn.textContent = 'Disconnect Wallet';
-  disconnectWalletBtn.style.display = 'none';
-  disconnectWalletBtn.addEventListener('click', () => {
-    disconnect();
-    walletInfo.style.display = 'none';
-    disconnectWalletBtn.style.display = 'none';
-    metamaskBtn.style.display = '';
-    metamaskBtn.disabled = false;
-    metamaskBtn.innerHTML = '🦊 Connect MetaMask';
-    document.getElementById('pa')!.textContent = '';
-    log('Wallet disconnected', 'info');
-  });
-
   if (!hasMetaMask()) {
     metamaskBtn.disabled = true;
     metamaskBtn.innerHTML = '🦊 MetaMask Not Found';
-    walletSection.appendChild(mk('div', 'pmvpn-hint', 'Install <a href="https://metamask.io" target="_blank">MetaMask</a> to connect your wallet.'));
+    walletSection.appendChild(mk('div', 'pmvpn-hint', 'Install <a href="https://metamask.io" target="_blank">MetaMask</a> to connect.'));
   }
 
-  walletSection.append(metamaskBtn, walletInfo, disconnectWalletBtn);
+  walletSection.append(metamaskBtn, walletInfo);
 
-  // ── How It Works ──
-  const flowSection = mk('div', 'pmvpn-section');
-  flowSection.innerHTML = `
-    <h3>How It Works</h3>
-    <div class="pmvpn-flow">
-      <div class="pmvpn-flow-step">1. <strong>Connect MetaMask</strong> — reveals your address only</div>
-      <div class="pmvpn-flow-step">2. <strong>Enter server</strong> — host and base port</div>
-      <div class="pmvpn-flow-step">3. <strong>Connect</strong> — fetches challenge nonce from server</div>
-      <div class="pmvpn-flow-step">4. <strong>MetaMask signs</strong> — private key never leaves MetaMask</div>
-      <div class="pmvpn-flow-step">5. <strong>Auth payload</strong> — use as SSH password</div>
-    </div>
-  `;
+  // ── Connections Section ──
+  const connSection = mk('div', 'pmvpn-section');
+  const connHeader = mk('div', 'pmvpn-conn-header');
+  connHeader.innerHTML = '<h3>Connections</h3>';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'pmvpn-btn-icon';
+  addBtn.textContent = '+';
+  addBtn.title = 'Add connection';
+  addBtn.addEventListener('click', showAddForm);
+  connHeader.appendChild(addBtn);
+  connSection.appendChild(connHeader);
 
-  // ── Server Section ──
-  const serverSection = mk('div', 'pmvpn-section', '<h3>Server</h3>');
+  const connList = mk('div', 'pmvpn-conn-list');
+  connSection.appendChild(connList);
+
+  // Add form (hidden by default)
+  const addForm = mk('div', 'pmvpn-add-form');
+  addForm.style.display = 'none';
+  const nameIn = document.createElement('input');
+  nameIn.className = 'pmvpn-input'; nameIn.placeholder = 'Name (e.g. dev-box)';
   const hostIn = document.createElement('input');
-  hostIn.className = 'pmvpn-input'; hostIn.placeholder = 'host (e.g. 192.168.1.50)'; hostIn.value = S.host;
-  hostIn.addEventListener('input', () => { S.host = hostIn.value; localStorage.setItem('pmvpn-host', S.host); });
+  hostIn.className = 'pmvpn-input'; hostIn.placeholder = 'Host (e.g. 192.168.1.50)';
   const portIn = document.createElement('input');
-  portIn.className = 'pmvpn-input'; portIn.placeholder = 'base port'; portIn.value = S.port;
-  portIn.addEventListener('input', () => { S.port = portIn.value; localStorage.setItem('pmvpn-port', S.port); });
+  portIn.className = 'pmvpn-input'; portIn.placeholder = 'Port (2200)'; portIn.value = '2200';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'pmvpn-btn pmvpn-btn-primary';
+  saveBtn.textContent = 'Add';
+  saveBtn.addEventListener('click', () => {
+    const name = nameIn.value.trim() || `${hostIn.value}:${portIn.value}`;
+    const host = hostIn.value.trim();
+    const port = portIn.value.trim() || '2200';
+    if (!host) { log('Host is required', 'error'); return; }
+    connections.push({ id: crypto.randomUUID(), name, host, port, status: 'offline', payload: null });
+    saveConnections();
+    renderConnections();
+    addForm.style.display = 'none';
+    nameIn.value = ''; hostIn.value = ''; portIn.value = '2200';
+    log(`Added: ${name}`, 'success');
+  });
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => { addForm.style.display = 'none'; });
+  const formBtns = mk('div', 'pmvpn-form-btns');
+  formBtns.append(saveBtn, cancelBtn);
+  addForm.append(nameIn, hostIn, portIn, formBtns);
+  connSection.appendChild(addForm);
 
-  const connectBtn = document.createElement('button');
-  connectBtn.className = 'pmvpn-btn pmvpn-btn-primary'; connectBtn.textContent = 'Connect';
-  connectBtn.addEventListener('click', doConnect);
-
-  const disconnectBtn = document.createElement('button');
-  disconnectBtn.className = 'pmvpn-btn pmvpn-btn-danger'; disconnectBtn.textContent = 'Disconnect';
-  disconnectBtn.style.display = 'none';
-  disconnectBtn.addEventListener('click', doDisconnect);
-
-  serverSection.append(hostIn, portIn, connectBtn, disconnectBtn);
-
-  // ── Auth Payload Section ──
+  // ── Payload Section ──
   const payloadSection = mk('div', 'pmvpn-section', '<h3>Auth Payload</h3>');
   payloadSection.style.display = 'none';
   const payloadArea = document.createElement('textarea');
   payloadArea.className = 'pmvpn-input'; payloadArea.readOnly = true;
-  payloadArea.style.cssText = 'font-size:10px;min-height:80px';
+  payloadArea.style.cssText = 'font-size:10px;min-height:70px';
   const copyBtn = document.createElement('button');
   copyBtn.className = 'pmvpn-btn pmvpn-btn-secondary'; copyBtn.textContent = 'Copy Payload';
   copyBtn.addEventListener('click', () => {
@@ -141,15 +160,15 @@ export function createApp(): HTMLElement {
     setTimeout(() => { copyBtn.textContent = 'Copy Payload'; }, 1500);
   });
   const sshHint = mk('div');
-  sshHint.style.cssText = 'font-size:11px;color:#484f58;margin-top:8px;font-family:monospace';
+  sshHint.style.cssText = 'font-size:11px;color:#484f58;margin-top:6px;font-family:monospace';
   payloadSection.append(payloadArea, copyBtn, sshHint);
 
-  sidebar.append(walletSection, flowSection, serverSection, payloadSection);
+  sidebar.append(walletSection, connSection, payloadSection);
 
   // ── Main: Terminal ──
   const placeholder = mk('div', 'pmvpn-placeholder', `
     <div class="pmvpn-placeholder-title">pmVPN</div>
-    <div class="pmvpn-placeholder-sub">Connect MetaMask → Enter server → Connect</div>
+    <div class="pmvpn-placeholder-sub">Connect MetaMask → Select connection → Authenticate</div>
     <div class="pmvpn-placeholder-sub" style="margin-top:16px;font-size:11px;color:#30363d;max-width:400px;text-align:center">
       Your private key never leaves MetaMask.<br>
       pmVPN only sees your address and signature.
@@ -169,27 +188,61 @@ export function createApp(): HTMLElement {
   body.append(sidebar, main);
   root.append(header, body, logEl, statusBar);
 
-  // ── Handlers ──
+  // ── Render connections list ──
+  function renderConnections() {
+    connList.innerHTML = '';
+    for (const conn of connections) {
+      const item = mk('div', `pmvpn-conn-item ${conn.status} ${activeConnId === conn.id ? 'active' : ''}`);
 
-  async function handleMetaMaskConnect(): Promise<void> {
+      const info = mk('div', 'pmvpn-conn-info');
+      info.innerHTML = `
+        <div class="pmvpn-conn-name">${conn.name}</div>
+        <div class="pmvpn-conn-addr">${conn.host}:${conn.port}</div>
+        <div class="pmvpn-conn-status">${conn.status}</div>
+      `;
+      info.addEventListener('click', () => doConnectTo(conn));
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'pmvpn-btn-icon pmvpn-btn-remove';
+      removeBtn.textContent = '−';
+      removeBtn.title = 'Remove connection';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeConnId === conn.id) doDisconnect();
+        connections = connections.filter(c => c.id !== conn.id);
+        saveConnections();
+        renderConnections();
+        log(`Removed: ${conn.name}`, 'info');
+      });
+
+      item.append(info, removeBtn);
+      connList.appendChild(item);
+    }
+  }
+
+  function showAddForm() {
+    addForm.style.display = addForm.style.display === 'none' ? '' : 'none';
+    if (addForm.style.display !== 'none') nameIn.focus();
+  }
+
+  // ── MetaMask connect ──
+  async function handleMetaMaskConnect() {
     try {
       metamaskBtn.disabled = true;
       metamaskBtn.innerHTML = '🦊 Connecting...';
       log('Requesting MetaMask connection...', 'info');
-
       const address = await connectMetaMask();
 
       metamaskBtn.style.display = 'none';
       walletInfo.style.display = '';
       walletInfo.innerHTML = `
-        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:8px 0">
+        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:6px 0">
           🟢 ${address.slice(0, 6)}...${address.slice(-4)}
         </div>
         <div style="font-size:11px;color:#484f58;word-break:break-all">${address}</div>
       `;
-      disconnectWalletBtn.style.display = '';
-      document.getElementById('pa')!.textContent = address.slice(0, 6) + '...' + address.slice(-4);
-
+      addrDisplay.textContent = address.slice(0, 6) + '...' + address.slice(-4);
+      logoutBtn.style.display = '';
       log(`Connected: ${address}`, 'success');
     } catch (e: any) {
       metamaskBtn.disabled = false;
@@ -198,48 +251,69 @@ export function createApp(): HTMLElement {
     }
   }
 
-  function setStatus(s: string): void {
-    S.status = s;
-    document.getElementById('sd')!.className = `pmvpn-status-dot ${s}`;
-    document.getElementById('st')!.textContent = s[0].toUpperCase() + s.slice(1);
-    document.getElementById('si')!.textContent = s === 'connected' ? `${S.host}:${S.port}` : '';
-    connectBtn.style.display = s === 'connected' ? 'none' : '';
-    disconnectBtn.style.display = s === 'connected' ? '' : 'none';
+  // ── Logout — full disconnect ──
+  function doLogout() {
+    // Disconnect all sessions
+    for (const conn of connections) {
+      conn.status = 'offline';
+      conn.payload = null;
+    }
+    activeConnId = null;
+
+    // Destroy terminal
+    if (term) { term.destroy(); term = null; }
+    termContainer.style.display = 'none';
+    placeholder.style.display = '';
+    payloadSection.style.display = 'none';
+
+    // Disconnect wallet
+    disconnect();
+    walletInfo.style.display = 'none';
+    metamaskBtn.style.display = '';
+    metamaskBtn.disabled = false;
+    metamaskBtn.innerHTML = '🦊 Connect MetaMask';
+    addrDisplay.textContent = '';
+    logoutBtn.style.display = 'none';
+
+    setStatus('disconnected');
+    renderConnections();
+    log('Logged out — wallet disconnected, all sessions cleared', 'success');
   }
 
-  async function doConnect(): Promise<void> {
-    if (!isConnected()) {
-      log('Connect MetaMask first', 'error');
-      return;
-    }
+  function setStatus(s: string) {
+    document.getElementById('sd')!.className = `pmvpn-status-dot ${s}`;
+    document.getElementById('st')!.textContent = s[0].toUpperCase() + s.slice(1);
+    const active = connections.find(c => c.id === activeConnId);
+    document.getElementById('si')!.textContent = active ? `${active.host}:${active.port}` : '';
+  }
+
+  // ── Connect to a specific connection ──
+  async function doConnectTo(conn: Connection) {
+    if (!isConnected()) { log('Connect MetaMask first', 'error'); return; }
 
     const address = getAddress()!;
-    const challengePort = parseInt(S.port) + 3;
+    const challengePort = parseInt(conn.port) + 3;
+    activeConnId = conn.id;
+    renderConnections();
 
     try {
-      // Step 1: Fetch challenge from server
       setStatus('connecting');
-      log(`Fetching challenge from ${S.host}:${challengePort}...`, 'info');
-      const challenge = await fetchChallenge(`http://${S.host}:${challengePort}`, address);
-      log(`Nonce: ${challenge.nonce.slice(0, 16)}... (expires in ${challenge.expires - Math.floor(Date.now() / 1000)}s)`, 'info');
+      log(`[${conn.name}] Fetching challenge from ${conn.host}:${challengePort}...`, 'info');
+      const challenge = await fetchChallenge(`http://${conn.host}:${challengePort}`, address);
+      log(`[${conn.name}] Nonce: ${challenge.nonce.slice(0, 16)}...`, 'info');
 
-      // Step 2: MetaMask signs the challenge (popup appears)
       setStatus('authenticating');
-      log('Requesting MetaMask signature...', 'info');
+      log(`[${conn.name}] Requesting MetaMask signature...`, 'info');
       const payload = await signAndBuildPayload(challenge.message, challenge.nonce);
-      log('Signature received from MetaMask', 'success');
+      log(`[${conn.name}] Signature received`, 'success');
 
-      // Step 3: Show auth payload
-      S.payload = payload;
+      conn.status = 'connected';
+      conn.payload = payload;
+
       payloadSection.style.display = '';
       payloadArea.value = payload;
-      sshHint.innerHTML = `
-        <br>Use as SSH password:<br>
-        <code>ssh -p ${S.port} -o PreferredAuthentications=password \\<br>
-        &nbsp;&nbsp;-o PubkeyAuthentication=no user@${S.host}</code>
-      `;
+      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
 
-      // Step 4: Show terminal with connection info
       placeholder.style.display = 'none';
       termContainer.style.display = '';
       if (term) term.destroy();
@@ -251,68 +325,63 @@ export function createApp(): HTMLElement {
       t.writeln('\x1b[1;34m║\x1b[0m  \x1b[1;37mpmVPN\x1b[0m — Wallet-Authenticated SSH        \x1b[1;34m║\x1b[0m');
       t.writeln('\x1b[1;34m╚══════════════════════════════════════════╝\x1b[0m');
       t.writeln('');
-      t.writeln(`  \x1b[36mWallet:\x1b[0m  ${address}`);
-      t.writeln(`  \x1b[36mServer:\x1b[0m  ${S.host}:${S.port}`);
-      t.writeln(`  \x1b[36mNonce:\x1b[0m   ${challenge.nonce.slice(0, 24)}...`);
-      t.writeln(`  \x1b[36mSigned:\x1b[0m  by MetaMask (key never exposed)`);
+      t.writeln(`  \x1b[36mConnection:\x1b[0m ${conn.name}`);
+      t.writeln(`  \x1b[36mWallet:\x1b[0m     ${address}`);
+      t.writeln(`  \x1b[36mServer:\x1b[0m     ${conn.host}:${conn.port}`);
+      t.writeln(`  \x1b[36mSigned:\x1b[0m     by MetaMask (key never exposed)`);
       t.writeln('');
       t.writeln('  \x1b[32m✓ Auth payload ready\x1b[0m');
       t.writeln('');
-      t.writeln('  \x1b[37mTo connect, paste the payload as your SSH password:\x1b[0m');
+      t.writeln(`  \x1b[90m$ ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}\x1b[0m`);
+      t.writeln(`  \x1b[90m  Password: <paste from sidebar>\x1b[0m`);
       t.writeln('');
-      t.writeln(`  \x1b[90m$ ssh -p ${S.port} -o PreferredAuthentications=password user@${S.host}\x1b[0m`);
-      t.writeln(`  \x1b[90m  Password: <paste auth payload from sidebar>\x1b[0m`);
-      t.writeln('');
-      t.writeln('  \x1b[33mThe payload is valid for 60 seconds, single use.\x1b[0m');
-      t.writeln('');
+      t.writeln('  \x1b[33mValid for 60 seconds, single use.\x1b[0m');
 
       setStatus('connected');
-      log('Auth payload ready — paste as SSH password', 'success');
-
+      renderConnections();
+      log(`[${conn.name}] Auth payload ready`, 'success');
     } catch (e: any) {
+      conn.status = 'error';
       setStatus('error');
-      log(`Failed: ${e.message}`, 'error');
+      renderConnections();
+      log(`[${conn.name}] Failed: ${e.message}`, 'error');
     }
   }
 
-  function doDisconnect(): void {
+  function doDisconnect() {
+    if (activeConnId) {
+      const conn = connections.find(c => c.id === activeConnId);
+      if (conn) { conn.status = 'offline'; conn.payload = null; }
+    }
+    activeConnId = null;
     if (term) { term.destroy(); term = null; }
     termContainer.style.display = 'none';
     placeholder.style.display = '';
     payloadSection.style.display = 'none';
-    S.payload = null;
     setStatus('disconnected');
+    renderConnections();
     log('Disconnected', 'info');
   }
 
-  // Listen for MetaMask account changes
+  // MetaMask account changes
   onAccountChange((accounts) => {
     if (accounts.length === 0) {
-      disconnect();
-      walletInfo.style.display = 'none';
-      disconnectWalletBtn.style.display = 'none';
-      metamaskBtn.style.display = '';
-      metamaskBtn.disabled = false;
-      metamaskBtn.innerHTML = '🦊 Connect MetaMask';
-      document.getElementById('pa')!.textContent = '';
-      log('MetaMask disconnected', 'info');
+      doLogout();
     } else {
       const addr = accounts[0].toLowerCase();
       walletInfo.innerHTML = `
-        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:8px 0">
-          🟢 ${addr.slice(0, 6)}...${addr.slice(-4)}
-        </div>
+        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:6px 0">🟢 ${addr.slice(0, 6)}...${addr.slice(-4)}</div>
         <div style="font-size:11px;color:#484f58;word-break:break-all">${addr}</div>
       `;
-      document.getElementById('pa')!.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
-      log(`Account changed: ${addr.slice(0, 10)}...`, 'info');
+      addrDisplay.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
+      log(`Account switched: ${addr.slice(0, 10)}...`, 'info');
     }
   });
 
+  renderConnections();
   log('pmVPN client ready', 'info');
-  if (!hasMetaMask()) {
-    log('MetaMask not detected — install MetaMask browser extension', 'error');
-  }
+  log('Local server: localhost:2200', 'info');
+  if (!hasMetaMask()) log('MetaMask not detected — install the browser extension', 'error');
 
   return root;
 }
