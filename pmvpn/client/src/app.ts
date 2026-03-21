@@ -13,6 +13,7 @@
 import { injectStyles } from './style';
 import { hasMetaMask, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
+import { createFileBrowser } from './files';
 injectStyles();
 
 interface Connection {
@@ -452,61 +453,99 @@ export function createApp(): HTMLElement {
     document.getElementById('si')!.textContent = active ? `${active.host}:${active.port}` : '';
   }
 
-  // ── Connect to a specific connection ──
+  // ── Tab switching ──
+  let activeTab: 'terminal' | 'files' = 'terminal';
+  let fileBrowser: ReturnType<typeof createFileBrowser> | null = null;
+  const tabBar = mk('div', 'pmvpn-tabs');
+  const tabTerminal = mk('button', 'pmvpn-tab active', 'Terminal');
+  const tabFiles = mk('button', 'pmvpn-tab', 'Files');
+  tabTerminal.addEventListener('click', () => switchTab('terminal'));
+  tabFiles.addEventListener('click', () => switchTab('files'));
+  tabBar.append(tabTerminal, tabFiles);
+  tabBar.style.display = 'none';
+  main.insertBefore(tabBar, termContainer);
+
+  const filesContainer = mk('div', 'pmvpn-files-container');
+  filesContainer.style.display = 'none';
+  main.appendChild(filesContainer);
+
+  function switchTab(tab: 'terminal' | 'files') {
+    activeTab = tab;
+    tabTerminal.className = `pmvpn-tab ${tab === 'terminal' ? 'active' : ''}`;
+    tabFiles.className = `pmvpn-tab ${tab === 'files' ? 'active' : ''}`;
+    termContainer.style.display = tab === 'terminal' ? '' : 'none';
+    filesContainer.style.display = tab === 'files' ? '' : 'none';
+    if (tab === 'terminal' && term) {
+      requestAnimationFrame(() => term!.fitAddon.fit());
+    }
+    if (tab === 'files' && fileBrowser) {
+      fileBrowser.refresh();
+    }
+  }
+
+  // ── Connect to a specific connection — REAL WebSocket ──
   async function doConnectTo(conn: Connection) {
     if (!isConnected()) { log('connect MetaMask first', 'error'); return; }
 
     const address = getAddress()!;
     const challengePort = parseInt(conn.port) + 3;
+    const wsPort = parseInt(conn.port) + 4;
     activeConnId = conn.id;
     renderConnections();
 
     try {
+      // Step 1: Fetch challenge
       setStatus('connecting');
       log(`${conn.name}: fetching challenge...`, 'info');
       const challenge = await fetchChallenge(`http://${conn.host}:${challengePort}`, address);
       log(`${conn.name}: nonce ${challenge.nonce.slice(0, 12)}...`, 'info');
 
+      // Step 2: Sign with MetaMask
       setStatus('authenticating');
       log(`${conn.name}: signing...`, 'info');
       const payload = await signAndBuildPayload(challenge.message, challenge.nonce);
       log(`${conn.name}: signed`, 'success');
 
-      conn.status = 'connected';
       conn.payload = payload;
-
       payloadSection.style.display = '';
       payloadArea.value = payload;
       sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
 
+      // Step 3: Show terminal + tabs
       placeholder.style.display = 'none';
       termContainer.style.display = '';
       termContainer.className = 'pmvpn-terminal-container active';
+      tabBar.style.display = '';
       if (term) term.destroy();
       term = createTerminal();
       term.mount(termContainer);
 
-      const t = term.terminal;
-      t.writeln('');
-      t.writeln('\x1b[1;32m  ╔══════════════════════════════════════════╗\x1b[0m');
-      t.writeln('\x1b[1;32m  ║\x1b[0m  \x1b[1;32mpmVPN\x1b[0m \x1b[32m— Wallet-Authenticated SSH\x1b[0m        \x1b[1;32m║\x1b[0m');
-      t.writeln('\x1b[1;32m  ╚══════════════════════════════════════════╝\x1b[0m');
-      t.writeln('');
-      t.writeln(`  \x1b[32mConnection:\x1b[0m \x1b[1;32m${conn.name}\x1b[0m`);
-      t.writeln(`  \x1b[32mWallet:\x1b[0m     \x1b[32m${address}\x1b[0m`);
-      t.writeln(`  \x1b[32mServer:\x1b[0m     \x1b[32m${conn.host}:${conn.port}\x1b[0m`);
-      t.writeln(`  \x1b[32mSigned:\x1b[0m     \x1b[32mby MetaMask (key never exposed)\x1b[0m`);
-      t.writeln('');
-      t.writeln('  \x1b[1;32m✓ Auth payload ready\x1b[0m');
-      t.writeln('');
-      t.writeln(`  \x1b[32m$ ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}\x1b[0m`);
-      t.writeln(`  \x1b[32m  Password: <paste from sidebar>\x1b[0m`);
-      t.writeln('');
-      t.writeln('  \x1b[33mValid for 60 seconds, single use.\x1b[0m');
+      // Step 4: Connect via WebSocket
+      log(`${conn.name}: connecting ws://${conn.host}:${wsPort}...`, 'info');
 
-      setStatus('connected');
-      renderConnections();
-      log(`${conn.name}: payload ready — paste as SSH password`, 'success');
+      term.connectWs(`ws://${conn.host}:${wsPort}`, payload, (ok, user, error) => {
+        if (ok) {
+          conn.status = 'connected';
+          setStatus('connected');
+          renderConnections();
+          log(`${conn.name}: live terminal as ${user}`, 'success');
+
+          // Step 5: Initialize file browser
+          fileBrowser = createFileBrowser(term!, log);
+          filesContainer.innerHTML = '';
+          filesContainer.appendChild(fileBrowser.element);
+          fileBrowser.refresh();
+        } else {
+          conn.status = 'error';
+          setStatus('error');
+          renderConnections();
+          log(`${conn.name}: auth failed — ${error}`, 'error');
+          // Fall back to payload mode
+          term!.terminal.writeln(`\r\n\x1b[31mWebSocket auth failed: ${error}\x1b[0m`);
+          term!.terminal.writeln(`\x1b[33mUse the auth payload as SSH password instead.\x1b[0m`);
+        }
+      });
+
     } catch (e: any) {
       conn.status = 'error';
       setStatus('error');
@@ -522,8 +561,12 @@ export function createApp(): HTMLElement {
     }
     activeConnId = null;
     if (term) { term.destroy(); term = null; }
+    fileBrowser = null;
+    filesContainer.innerHTML = '';
+    filesContainer.style.display = 'none';
     termContainer.style.display = 'none';
     termContainer.className = 'pmvpn-terminal-container';
+    tabBar.style.display = 'none';
     placeholder.style.display = '';
     payloadSection.style.display = 'none';
     setStatus('disconnected');

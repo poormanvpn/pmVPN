@@ -575,6 +575,137 @@ textarea.pmvpn-input {
    SCROLLBAR
    ══════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════
+   TABS
+   ══════════════════════════════════════════════════════ */
+
+.pmvpn-tabs {
+  display: flex;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 4px;
+}
+
+.pmvpn-tab {
+  padding: 8px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.pmvpn-tab:hover { color: var(--foreground); }
+.pmvpn-tab.active {
+  color: var(--terminal-fg);
+  border-bottom-color: var(--terminal-fg);
+}
+
+/* ══════════════════════════════════════════════════════
+   FILE BROWSER
+   ══════════════════════════════════════════════════════ */
+
+.pmvpn-files-container {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--background);
+}
+
+.pmvpn-files {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.pmvpn-breadcrumb {
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.pmvpn-breadcrumb-item {
+  color: var(--primary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.pmvpn-breadcrumb-item:hover { background: var(--muted); }
+.pmvpn-breadcrumb-sep { color: var(--muted-foreground); margin: 0 2px; }
+
+.pmvpn-files-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.pmvpn-file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.pmvpn-file-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.pmvpn-file-row:hover { background: var(--card); }
+.pmvpn-file-row.directory .pmvpn-file-name { color: var(--primary); font-weight: 500; }
+.pmvpn-file-row.file .pmvpn-file-name { color: var(--foreground); }
+
+.pmvpn-file-icon { font-size: 14px; width: 20px; text-align: center; }
+.pmvpn-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmvpn-file-size { width: 80px; text-align: right; color: var(--muted-foreground); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.pmvpn-file-date { width: 140px; text-align: right; color: var(--muted-foreground); font-size: 11px; }
+
+.pmvpn-file-action {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all var(--transition-fast);
+}
+
+.pmvpn-file-action:hover { color: var(--destructive); background: rgba(243,139,168,0.1); }
+
+.pmvpn-files-status {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pmvpn-files-empty, .pmvpn-files-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+/* ══════════════════════════════════════════════════════
+   SCROLLBAR
+   ══════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }

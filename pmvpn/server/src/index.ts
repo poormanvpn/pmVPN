@@ -8,6 +8,7 @@ import { loadOrGenerateHostKey } from './utils/hostkey.js';
 import { loadWalletMap } from './config/wallets.js';
 import { createSSHServer } from './ssh/server.js';
 import { createChallengeServer } from './api/challenge.js';
+import { createWsBridge } from './ws/bridge.js';
 import { BIND_HOST, portFor, PORT_OFFSET, PORT_NAMES } from './config/ports.js';
 import { logger } from './utils/logger.js';
 import { PROTOCOL_VERSION } from './shared.js';
@@ -52,10 +53,10 @@ async function main(): Promise<void> {
     logger.info({ port: portFor(PORT_OFFSET.CHALLENGE), service: PORT_NAMES[3] }, 'listening');
   });
 
-  // Port +4: VPN Tunnel (SSH — multiplexed TCP/UDP/DNS)
-  const tunnelServer = createSSHServer(hostKey, walletMap, 'tunnel');
-  tunnelServer.listen(portFor(PORT_OFFSET.TUNNEL), BIND_HOST, () => {
-    logger.info({ port: portFor(PORT_OFFSET.TUNNEL), service: 'VPN Tunnel' }, 'listening');
+  // Port +4: WebSocket Bridge (browser terminal + file browser)
+  const wsBridge = createWsBridge(walletMap);
+  wsBridge.listen(portFor(PORT_OFFSET.TUNNEL), BIND_HOST, () => {
+    logger.info({ port: portFor(PORT_OFFSET.TUNNEL), service: 'WS Bridge' }, 'listening');
   });
 
   // Port +5: File Sync (SSH — shell role for now, specializes later)
@@ -83,7 +84,7 @@ async function main(): Promise<void> {
   logger.info(`  SFTP:           ${BIND_HOST}:${portFor(PORT_OFFSET.SFTP)}`);
   logger.info(`  SSH Exec:       ${BIND_HOST}:${portFor(PORT_OFFSET.SSH_EXEC)}`);
   logger.info(`  Challenge API:  ${BIND_HOST}:${portFor(PORT_OFFSET.CHALLENGE)}`);
-  logger.info(`  VPN Tunnel:     ${BIND_HOST}:${portFor(PORT_OFFSET.TUNNEL)}`);
+  logger.info(`  WS Bridge:      ${BIND_HOST}:${portFor(PORT_OFFSET.TUNNEL)}`);
   logger.info(`  File Sync:      ${BIND_HOST}:${portFor(PORT_OFFSET.FILE_SYNC)}`);
   logger.info(`  Claude AI:      ${BIND_HOST}:${portFor(PORT_OFFSET.CLAUDE_AI)}`);
   logger.info(`  Admin:          ${BIND_HOST}:${portFor(PORT_OFFSET.ADMIN)}`);
@@ -96,7 +97,7 @@ async function main(): Promise<void> {
     sftpServer.close();
     execServer.close();
     challengeServer.close();
-    tunnelServer.close();
+    wsBridge.close();
     syncServer.close();
     claudeServer.close();
     adminServer.close();

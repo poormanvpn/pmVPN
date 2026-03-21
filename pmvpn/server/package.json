@@ -1,7 +1,7 @@
 {
   "name": "@pmvpn/server",
   "version": "0.1.0",
-  "description": "PMVPN SSH server \u2014 wallet-authenticated remote access",
+  "description": "PMVPN SSH server — wallet-authenticated remote access",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -10,16 +10,18 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "ssh2": "^1.16.0",
+    "@types/ws": "^8.18.1",
     "node-pty": "^1.0.0",
+    "pino": "^9.6.0",
+    "ssh2": "^1.16.0",
     "viem": "^2.21.0",
-    "pino": "^9.6.0"
+    "ws": "^8.20.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "@types/ssh2": "^1.15.4",
     "@types/node": "^22.0.0",
-    "tsx": "^4.19.0"
+    "@types/ssh2": "^1.15.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
