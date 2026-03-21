@@ -21,6 +21,7 @@ import * as pty from 'node-pty';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
 import { sftpLs, sftpGet, sftpPut, sftpMkdir, sftpRm, sftpStat } from '../ssh/sftp.js';
+import { createShare, addFileToShare, getShare, canAccess, listShareFiles, getShareFile, removeShare, listShares, buildInviteMessage } from '../share/manager.js';
 import { logger } from '../utils/logger.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
@@ -209,6 +210,116 @@ export function createWsBridge(walletMap: WalletMap) {
         }
 
         ws.send(JSON.stringify({ type: 'sftp', id, result }));
+        return;
+      }
+
+      // ── Share (P2P file sharing) ──
+      if (msg.type === 'share') {
+        const id = msg.id || 0;
+        let result: any;
+
+        switch (msg.cmd) {
+          case 'create': {
+            // Create a new share
+            const meta = createShare(session.address, msg.name || 'Shared Files', {
+              expires: msg.expires || null,
+              maxDownloads: msg.maxDownloads || 0,
+              allowedWallets: msg.allowedWallets || [],
+            });
+            result = { ok: true, share: meta };
+            break;
+          }
+
+          case 'add-file': {
+            // Add a file to a share (from user's home or base64 data)
+            if (msg.data) {
+              const buffer = Buffer.from(msg.data, 'base64');
+              const ok = addFileToShare(msg.shareId, msg.filename, buffer);
+              result = { ok, error: ok ? undefined : 'share not found' };
+            } else if (msg.sourcePath) {
+              // Copy from user's filesystem
+              const srcResult = await sftpGet(session.homeDir, msg.sourcePath);
+              if (srcResult.ok && srcResult.data) {
+                const buffer = Buffer.from(srcResult.data, 'base64');
+                const ok = addFileToShare(msg.shareId, msg.filename || msg.sourcePath.split('/').pop()!, buffer);
+                result = { ok, error: ok ? undefined : 'share not found' };
+              } else {
+                result = { ok: false, error: srcResult.error || 'file not found' };
+              }
+            } else {
+              result = { ok: false, error: 'provide data (base64) or sourcePath' };
+            }
+            break;
+          }
+
+          case 'list': {
+            // List shares created by this wallet
+            const myShares = listShares(session.address);
+            result = { ok: true, shares: myShares };
+            break;
+          }
+
+          case 'files': {
+            // List files in a share (requires access)
+            const share = getShare(msg.shareId);
+            if (!share) {
+              result = { ok: false, error: 'share not found or expired' };
+            } else if (!canAccess(msg.shareId, session.address) && share.creator !== session.address) {
+              result = { ok: false, error: 'access denied' };
+            } else {
+              const files = listShareFiles(msg.shareId);
+              result = { ok: true, share, files };
+            }
+            break;
+          }
+
+          case 'download': {
+            // Download a file from a share
+            const share = getShare(msg.shareId);
+            if (!share) {
+              result = { ok: false, error: 'share not found or expired' };
+            } else if (!canAccess(msg.shareId, session.address) && share.creator !== session.address) {
+              result = { ok: false, error: 'access denied' };
+            } else {
+              const fileBuffer = getShareFile(msg.shareId, msg.filename);
+              if (fileBuffer) {
+                result = { ok: true, data: fileBuffer.toString('base64'), filename: msg.filename };
+              } else {
+                result = { ok: false, error: 'file not found' };
+              }
+            }
+            break;
+          }
+
+          case 'invite': {
+            // Build an invite message for the sender to sign
+            const share = getShare(msg.shareId);
+            if (!share || share.creator !== session.address) {
+              result = { ok: false, error: 'share not found or not yours' };
+            } else {
+              const inviteMsg = buildInviteMessage(msg.shareId, msg.host || 'localhost', msg.port || 2200);
+              result = { ok: true, message: inviteMsg, shareId: msg.shareId };
+            }
+            break;
+          }
+
+          case 'remove': {
+            // Remove a share (only creator can)
+            const share = getShare(msg.shareId);
+            if (!share || share.creator !== session.address) {
+              result = { ok: false, error: 'share not found or not yours' };
+            } else {
+              removeShare(msg.shareId);
+              result = { ok: true };
+            }
+            break;
+          }
+
+          default:
+            result = { ok: false, error: `unknown share command: ${msg.cmd}` };
+        }
+
+        ws.send(JSON.stringify({ type: 'share', id, result }));
         return;
       }
     });

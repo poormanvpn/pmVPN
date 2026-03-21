@@ -16,6 +16,7 @@ import { createTerminal, type TerminalInstance } from './terminal';
 import { createFileBrowser } from './files';
 import { bootstrapServer, deploySSHKey } from './bootstrap';
 import { exportProfiles, importProfiles } from './hostkeys';
+import { createSharePanel } from './share';
 injectStyles();
 
 interface Connection {
@@ -517,14 +518,17 @@ export function createApp(): HTMLElement {
   }
 
   // ── Tab switching ──
-  let activeTab: 'terminal' | 'files' = 'terminal';
+  let activeTab: 'terminal' | 'files' | 'share' = 'terminal';
   let fileBrowser: ReturnType<typeof createFileBrowser> | null = null;
+  let sharePanel: ReturnType<typeof createSharePanel> | null = null;
   const tabBar = mk('div', 'pmvpn-tabs');
   const tabTerminal = mk('button', 'pmvpn-tab active', 'Terminal');
   const tabFiles = mk('button', 'pmvpn-tab', 'Files');
+  const tabShare = mk('button', 'pmvpn-tab', 'Share');
   tabTerminal.addEventListener('click', () => switchTab('terminal'));
   tabFiles.addEventListener('click', () => switchTab('files'));
-  tabBar.append(tabTerminal, tabFiles);
+  tabShare.addEventListener('click', () => switchTab('share'));
+  tabBar.append(tabTerminal, tabFiles, tabShare);
   tabBar.style.display = 'none';
   main.insertBefore(tabBar, termContainer);
 
@@ -532,17 +536,26 @@ export function createApp(): HTMLElement {
   filesContainer.style.display = 'none';
   main.appendChild(filesContainer);
 
-  function switchTab(tab: 'terminal' | 'files') {
+  const shareContainer = mk('div', 'pmvpn-share-container');
+  shareContainer.style.display = 'none';
+  main.appendChild(shareContainer);
+
+  function switchTab(tab: 'terminal' | 'files' | 'share') {
     activeTab = tab;
     tabTerminal.className = `pmvpn-tab ${tab === 'terminal' ? 'active' : ''}`;
     tabFiles.className = `pmvpn-tab ${tab === 'files' ? 'active' : ''}`;
+    tabShare.className = `pmvpn-tab ${tab === 'share' ? 'active' : ''}`;
     termContainer.style.display = tab === 'terminal' ? '' : 'none';
     filesContainer.style.display = tab === 'files' ? '' : 'none';
+    shareContainer.style.display = tab === 'share' ? '' : 'none';
     if (tab === 'terminal' && term) {
       requestAnimationFrame(() => term!.fitAddon.fit());
     }
     if (tab === 'files' && fileBrowser) {
       fileBrowser.refresh();
+    }
+    if (tab === 'share' && sharePanel) {
+      sharePanel.refresh();
     }
   }
 
@@ -598,6 +611,12 @@ export function createApp(): HTMLElement {
           filesContainer.innerHTML = '';
           filesContainer.appendChild(fileBrowser.element);
           fileBrowser.refresh();
+
+          // Step 6: Initialize share panel
+          sharePanel = createSharePanel(term!, getAddress()!, conn.host, conn.port, log);
+          shareContainer.innerHTML = '';
+          shareContainer.appendChild(sharePanel.element);
+          sharePanel.refresh();
         } else {
           conn.status = 'error';
           setStatus('error');
@@ -625,8 +644,11 @@ export function createApp(): HTMLElement {
     activeConnId = null;
     if (term) { term.destroy(); term = null; }
     fileBrowser = null;
+    sharePanel = null;
     filesContainer.innerHTML = '';
     filesContainer.style.display = 'none';
+    shareContainer.innerHTML = '';
+    shareContainer.style.display = 'none';
     termContainer.style.display = 'none';
     termContainer.className = 'pmvpn-terminal-container';
     tabBar.style.display = 'none';

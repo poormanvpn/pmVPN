@@ -93,12 +93,18 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Connection profile import (merge without duplicates)
 - [x] Tools panel in sidebar: Bootstrap, Deploy Key, Export, Import
 
-### Phase 6: P2P File Sharing
+### Phase 6: P2P File Sharing ✅
 
-- [ ] Sender starts pmVPN server, stages files
-- [ ] Wallet-signed connection details sent to receiver
-- [ ] Receiver connects via browser (no server needed)
-- [ ] Both sides authenticated by signature (proof of personhood)
+- [x] Share manager: create shares, add files, set expiry/download limits
+- [x] Access control: restrict shares to specific wallet addresses
+- [x] Share invite: wallet-signed connection details for receiver
+- [x] Receiver browses and downloads shared files via browser
+- [x] Both sides authenticated by signature (proof of personhood)
+- [x] Share tab in client UI (Terminal | Files | Share)
+- [x] Create share, add files, copy invite, view files, delete share
+- [x] Receive share: paste invite JSON, browse and download
+- [x] Server-side share storage with auto-expiry and download limits
+- [x] WebSocket share protocol (create/add-file/list/files/download/invite/remove)
 
 ### Phase 7: blocktalk (Wallet-to-Wallet Messaging)
 

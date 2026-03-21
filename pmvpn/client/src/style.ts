@@ -703,6 +703,92 @@ textarea.pmvpn-input {
 }
 
 /* ══════════════════════════════════════════════════════
+   SHARE (P2P)
+   ══════════════════════════════════════════════════════ */
+
+.pmvpn-share-container {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--background);
+  padding: 16px;
+}
+
+.pmvpn-share-panel { max-width: 600px; margin: 0 auto; }
+
+.pmvpn-share-section {
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.pmvpn-share-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--card-foreground);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.pmvpn-share-list { margin-top: 8px; }
+
+.pmvpn-share-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: var(--radius);
+  background: var(--popover);
+  transition: background var(--transition-fast);
+}
+
+.pmvpn-share-item:hover { background: var(--muted); }
+
+.pmvpn-share-name { font-size: 13px; color: var(--card-foreground); font-weight: 500; }
+.pmvpn-share-meta { font-size: 11px; color: var(--muted-foreground); }
+.pmvpn-share-actions { display: flex; gap: 4px; }
+
+.pmvpn-share-empty, .pmvpn-share-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.pmvpn-share-files {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.pmvpn-share-files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--card-foreground);
+}
+
+.pmvpn-share-file-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: background var(--transition-fast);
+  font-size: 13px;
+}
+
+.pmvpn-share-file-row:hover { background: var(--popover); }
+
+/* ══════════════════════════════════════════════════════
    SCROLLBAR
    ══════════════════════════════════════════════════════ */
 

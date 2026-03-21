@@ -119,7 +119,7 @@ export function createTerminal(): TerminalInstance {
         return;
       }
 
-      if (msg.type === 'sftp' && msg.id !== undefined) {
+      if ((msg.type === 'sftp' || msg.type === 'share') && msg.id !== undefined) {
         const cb = sftpCallbacks.get(msg.id);
         if (cb) {
           sftpCallbacks.delete(msg.id);
@@ -172,9 +172,34 @@ export function createTerminal(): TerminalInstance {
     terminal.dispose();
   }
 
+  /**
+   * Send any typed message over WebSocket and wait for response by id.
+   */
+  function sendTyped(type: string, cmd: string, params: Record<string, any>): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('not connected'));
+        return;
+      }
+      const id = ++sftpId;
+      const timeout = setTimeout(() => {
+        sftpCallbacks.delete(id);
+        reject(new Error('timeout'));
+      }, 30000);
+
+      // Register callback — works for any type that returns { id, result }
+      sftpCallbacks.set(id, (result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      });
+
+      ws.send(JSON.stringify({ type, id, cmd, ...params }));
+    });
+  }
+
   function isConnected(): boolean {
     return ws !== null && ws.readyState === WebSocket.OPEN;
   }
 
-  return { terminal, fitAddon, mount, connectWs, sendSftp, disconnect, destroy, isConnected };
+  return { terminal, fitAddon, mount, connectWs, sendSftp, sendTyped, disconnect, destroy, isConnected };
 }
