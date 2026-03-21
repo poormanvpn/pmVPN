@@ -106,12 +106,20 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Server-side share storage with auto-expiry and download limits
 - [x] WebSocket share protocol (create/add-file/list/files/download/invite/remove)
 
-### Phase 7: blocktalk (Wallet-to-Wallet Messaging)
+### Phase 7: blocktalk (Wallet-to-Wallet Messaging) ✅
 
-- [ ] Separate dApp module for wallet-to-wallet messaging
-- [ ] Uses pmVPN as module for file share between peers
-- [ ] Encrypted messages signed by sender wallet
-- [ ] Receiver verifies signature before accepting
+- [x] Separate dApp module at `/blocktalk/`
+- [x] Message format: from, to, timestamp, content, type, nonce, signature
+- [x] Canonical message signing (blocktalk message string)
+- [x] Signature verification via viem.verifyMessage()
+- [x] Message store (localStorage, 500 message limit)
+- [x] Contact list with add/remove
+- [x] Conversation view with sent/received bubbles
+- [x] MetaMask login with mandatory signature (proof of personhood)
+- [x] Share invite message type for pmVPN integration
+- [x] Transport agnostic: clipboard, paste, any channel
+- [x] Message replay protection (unique nonce per message)
+- [x] Expiry detection (24-hour default)
 
 ### Phase 8: Multi-Host Management
 
