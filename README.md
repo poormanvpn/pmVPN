@@ -150,7 +150,7 @@ The poor man's VPN is not a new idea. It is an old one, refined.
 
 **[Tauri](https://tauri.app/)** proved that native apps don't need Electron. Rust backend, system webview, 10MB instead of 300MB. The architecture for shipping pmVPN to phones. *The vehicle.*
 
-**[PARSEC Wallet](https://github.com/cypherpunk2048/parsec-wallet)** and **[bankonOS](https://github.com/cypherpunk2048)** are the ecosystem pmVPN was built for. Sovereign Algorand wallet. Self-sovereign banking OS. Crypto-ssh authentication. bankon_vault encrypted key storage. The pattern that wallet signatures can replace passwords was proven here first. *The home.*
+**[PARSEC Wallet](https://github.com/parsec-wallet)** and **[bankonOS](https://github.com/cypherpunk2048)** are the ecosystem pmVPN was built for. Sovereign Algorand wallet. Self-sovereign banking OS. Crypto-ssh authentication. bankon_vault encrypted key storage. The pattern that wallet signatures can replace passwords was proven here first. *The home.*
 
 **[RustCrypto](https://github.com/RustCrypto)** — k256 for secp256k1, sha3 for keccak256. Private key operations in Rust memory. Never in JavaScript. *The shield.*
 
