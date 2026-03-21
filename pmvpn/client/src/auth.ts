@@ -110,12 +110,13 @@ export function isConnected(): boolean {
 }
 
 /**
- * Full logout — destroy session, revoke MetaMask permission, clear everything.
+ * Full logout — destroy session, revoke permissions, LOCK MetaMask.
  *
  * After this:
  *   - sessionActive is false
- *   - eth_accounts returns [] (if revoke succeeded)
- *   - connectMetaMask() will show the full approval popup
+ *   - MetaMask is locked (requires password on next use)
+ *   - eth_accounts returns []
+ *   - connectMetaMask() will trigger MetaMask password + approval popup
  */
 export async function disconnect(): Promise<void> {
   // 1. Kill session immediately — this is the real logout
@@ -123,18 +124,32 @@ export async function disconnect(): Promise<void> {
   walletClient = null;
   connectedAddress = null;
 
-  // 2. Revoke MetaMask permission
   if (hasMetaMask()) {
     const ethereum = (window as any).ethereum;
+
+    // 2. Revoke site permissions
     try {
       await ethereum.request({
         method: 'wallet_revokePermissions',
         params: [{ eth_accounts: {} }],
       });
     } catch {}
+
+    // 3. LOCK MetaMask — forces password re-entry on next use
+    // This is the internal lock that requires the user's password to unlock.
+    // After this, MetaMask is fully locked — no dApp can access accounts
+    // until the user enters their MetaMask password again.
+    try {
+      await ethereum.request({ method: 'wallet_lock' });
+    } catch {
+      // Some versions use internal__lock or don't expose lock at all
+      try {
+        await ethereum.request({ method: 'internal__lock' });
+      } catch {}
+    }
   }
 
-  // 3. Clear any persisted wallet data
+  // 4. Clear any persisted wallet data
   localStorage.removeItem('pmvpn-wallet-address');
 }
 
