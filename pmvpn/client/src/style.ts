@@ -1,74 +1,76 @@
 // pmVPN Client Styles
-// Theming architecture inspired by gnugui/tauri-theme
-// https://github.com/gnugui/tauri-theme
-//
-// 30 semantic CSS custom properties. Swap :root values to retheme entirely.
-// Default: Tokyo Night — dark, sharp, high contrast.
+// Theming: gnugui/tauri-theme semantic tokens
+// Landing: lighter, readable. Terminal: green-on-black classic Linux.
 
 const CSS = `
 
 /* ══════════════════════════════════════════════════════
-   THEME TOKENS — gnugui semantic design token system
-   Change these to retheme the entire application.
+   THEME TOKENS
+   Lighter palette for readability. Green terminal post-connect.
    ══════════════════════════════════════════════════════ */
 
 :root {
-  /* Surface layers */
-  --background:           #1a1b26;
-  --card:                 #1f2335;
-  --popover:              #24283b;
-  --muted:                #292e42;
-  --sidebar:              #16161e;
-  --sidebar-border:       #292e42;
+  /* Surface layers — lifted from pure black for readability */
+  --background:           #1e2030;
+  --card:                 #262840;
+  --popover:              #2e3150;
+  --muted:                #363a56;
+  --sidebar:              #232540;
+  --sidebar-border:       #363a56;
 
-  /* Text */
-  --foreground:           #a9b1d6;
-  --muted-foreground:     #565f89;
-  --card-foreground:      #c0caf5;
-  --popover-foreground:   #c0caf5;
+  /* Text — brighter for contrast */
+  --foreground:           #cdd6f4;
+  --muted-foreground:     #7f849c;
+  --card-foreground:      #e0e4f7;
+  --popover-foreground:   #e0e4f7;
 
   /* Interactive */
-  --primary:              #7aa2f7;
-  --primary-foreground:   #1a1b26;
-  --secondary:            #292e42;
-  --secondary-foreground: #a9b1d6;
-  --accent:               #bb9af7;
-  --accent-foreground:    #1a1b26;
-  --destructive:          #f7768e;
-  --destructive-foreground: #1a1b26;
+  --primary:              #89b4fa;
+  --primary-foreground:   #11111b;
+  --secondary:            #363a56;
+  --secondary-foreground: #cdd6f4;
+  --accent:               #cba6f7;
+  --accent-foreground:    #11111b;
+  --destructive:          #f38ba8;
+  --destructive-foreground: #11111b;
 
   /* Semantic */
-  --success:              #9ece6a;
-  --warning:              #e0af68;
-  --info:                 #7aa2f7;
+  --success:              #a6e3a1;
+  --warning:              #f9e2af;
+  --info:                 #89b4fa;
 
-  /* UI boundaries */
-  --border:               #292e42;
-  --input:                #1f2335;
-  --ring:                 #7aa2f7;
+  /* UI boundaries — visible but not harsh */
+  --border:               #3b3f5c;
+  --input:                #2a2d48;
+  --ring:                 #89b4fa;
 
-  /* Chart colors */
-  --chart-1:              #7aa2f7;
-  --chart-2:              #9ece6a;
-  --chart-3:              #e0af68;
-  --chart-4:              #bb9af7;
-  --chart-5:              #f7768e;
+  /* Chart */
+  --chart-1:              #89b4fa;
+  --chart-2:              #a6e3a1;
+  --chart-3:              #f9e2af;
+  --chart-4:              #cba6f7;
+  --chart-5:              #f38ba8;
 
-  /* MetaMask brand */
+  /* MetaMask */
   --metamask:             #e2761b;
   --metamask-hover:       #f6851b;
 
-  /* Radius */
+  /* Terminal green — classic Linux */
+  --terminal-bg:          #0a0a0a;
+  --terminal-fg:          #33ff33;
+  --terminal-dim:         #1a6b1a;
+  --terminal-bright:      #66ff66;
+  --terminal-border:      #1a3a1a;
+
+  /* Radius & transitions */
   --radius:               8px;
   --radius-lg:            12px;
-
-  /* Transitions */
   --transition-fast:      0.15s ease;
   --transition-normal:    0.25s ease;
 }
 
 /* ══════════════════════════════════════════════════════
-   GLOBAL RESET & BASE
+   GLOBAL
    ══════════════════════════════════════════════════════ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -81,7 +83,6 @@ body {
   height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
@@ -101,7 +102,6 @@ body {
   padding: 10px 20px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
 }
 
 .pmvpn-title {
@@ -130,13 +130,13 @@ body {
   font-size: 12px;
   color: var(--success);
   padding: 3px 8px;
-  background: rgba(158,206,106,0.08);
+  background: rgba(166,227,161,0.1);
   border-radius: var(--radius);
-  border: 1px solid rgba(158,206,106,0.15);
+  border: 1px solid rgba(166,227,161,0.2);
 }
 
 /* ══════════════════════════════════════════════════════
-   LOGOUT — unmistakable, always clear
+   LOGOUT
    ══════════════════════════════════════════════════════ */
 
 .pmvpn-btn-logout {
@@ -156,7 +156,7 @@ body {
 .pmvpn-btn-logout:hover {
   background: var(--destructive);
   color: var(--destructive-foreground);
-  box-shadow: 0 0 20px rgba(247,118,142,0.25);
+  box-shadow: 0 0 20px rgba(243,139,168,0.25);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -212,12 +212,10 @@ body {
 
 .pmvpn-input:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 2px rgba(122,162,247,0.15);
+  box-shadow: 0 0 0 2px rgba(137,180,250,0.15);
 }
 
-.pmvpn-input::placeholder {
-  color: var(--muted);
-}
+.pmvpn-input::placeholder { color: var(--muted); }
 
 textarea.pmvpn-input {
   resize: vertical;
@@ -249,7 +247,7 @@ textarea.pmvpn-input {
 
 .pmvpn-btn-primary:hover {
   filter: brightness(1.15);
-  box-shadow: 0 0 16px rgba(122,162,247,0.2);
+  box-shadow: 0 0 16px rgba(137,180,250,0.2);
 }
 
 .pmvpn-btn-primary:disabled {
@@ -267,7 +265,7 @@ textarea.pmvpn-input {
 
 .pmvpn-btn-danger:hover {
   filter: brightness(1.15);
-  box-shadow: 0 0 16px rgba(247,118,142,0.2);
+  box-shadow: 0 0 16px rgba(243,139,168,0.2);
 }
 
 .pmvpn-btn-secondary {
@@ -275,9 +273,7 @@ textarea.pmvpn-input {
   color: var(--secondary-foreground);
 }
 
-.pmvpn-btn-secondary:hover {
-  background: var(--muted);
-}
+.pmvpn-btn-secondary:hover { background: var(--muted); }
 
 .pmvpn-btn-metamask {
   background: linear-gradient(135deg, var(--metamask) 0%, #cd6116 100%);
@@ -293,10 +289,7 @@ textarea.pmvpn-input {
   box-shadow: 0 0 24px rgba(226,118,27,0.3);
 }
 
-.pmvpn-btn-metamask:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+.pmvpn-btn-metamask:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .pmvpn-btn-icon {
   width: 26px;
@@ -314,11 +307,7 @@ textarea.pmvpn-input {
   transition: all var(--transition-fast);
 }
 
-.pmvpn-btn-icon:hover {
-  background: var(--muted);
-  border-color: var(--muted-foreground);
-}
-
+.pmvpn-btn-icon:hover { background: var(--muted); border-color: var(--muted-foreground); }
 .pmvpn-btn-remove { color: var(--muted-foreground); }
 .pmvpn-btn-remove:hover { color: var(--destructive); border-color: var(--destructive); }
 
@@ -333,7 +322,6 @@ textarea.pmvpn-input {
 }
 
 .pmvpn-conn-header h3 { margin: 0; }
-
 .pmvpn-conn-list { margin-top: 8px; }
 
 .pmvpn-conn-item {
@@ -348,72 +336,36 @@ textarea.pmvpn-input {
   border-left: 3px solid transparent;
 }
 
-.pmvpn-conn-item:hover {
-  background: var(--card);
-}
-
-.pmvpn-conn-item.active {
-  background: var(--popover);
-  border-left-color: var(--primary);
-}
-
+.pmvpn-conn-item:hover { background: var(--card); }
+.pmvpn-conn-item.active { background: var(--popover); border-left-color: var(--primary); }
 .pmvpn-conn-item.connected .pmvpn-conn-status { color: var(--success); }
 .pmvpn-conn-item.error .pmvpn-conn-status { color: var(--destructive); }
 
 .pmvpn-conn-info { flex: 1; min-width: 0; }
 
-.pmvpn-conn-name {
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--card-foreground);
-}
-
-.pmvpn-conn-addr {
-  font-size: 11px;
-  color: var(--muted-foreground);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.pmvpn-conn-status {
-  font-size: 9px;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 600;
-}
+.pmvpn-conn-name { font-weight: 500; font-size: 13px; color: var(--card-foreground); }
+.pmvpn-conn-addr { font-size: 11px; color: var(--muted-foreground); font-family: 'JetBrains Mono', monospace; }
+.pmvpn-conn-status { font-size: 9px; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
 
 /* ══════════════════════════════════════════════════════
    ADD FORM
    ══════════════════════════════════════════════════════ */
 
-.pmvpn-add-form {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
+.pmvpn-add-form { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .pmvpn-add-form .pmvpn-input { margin-bottom: 6px; }
-
 .pmvpn-form-btns { display: flex; gap: 6px; }
 .pmvpn-form-btns .pmvpn-btn { flex: 1; }
 
 /* ══════════════════════════════════════════════════════
-   WALLET INFO & HINTS
+   WALLET & HINTS
    ══════════════════════════════════════════════════════ */
 
 .pmvpn-wallet-info { padding: 6px 0; }
-
-.pmvpn-hint {
-  font-size: 11px;
-  color: var(--muted-foreground);
-  margin-top: 8px;
-}
-
+.pmvpn-hint { font-size: 11px; color: var(--muted-foreground); margin-top: 8px; }
 .pmvpn-hint a { color: var(--primary); text-decoration: none; }
 .pmvpn-hint a:hover { text-decoration: underline; }
 
 .pmvpn-flow { font-size: 12px; color: var(--foreground); }
-
 .pmvpn-flow-step {
   padding: 4px 0;
   border-left: 2px solid var(--border);
@@ -421,11 +373,10 @@ textarea.pmvpn-input {
   margin-bottom: 2px;
   color: var(--muted-foreground);
 }
-
 .pmvpn-flow-step strong { color: var(--card-foreground); }
 
 /* ══════════════════════════════════════════════════════
-   MAIN AREA
+   MAIN AREA — PLACEHOLDER (pre-connect)
    ══════════════════════════════════════════════════════ */
 
 .pmvpn-main {
@@ -436,13 +387,6 @@ textarea.pmvpn-input {
   background: var(--background);
 }
 
-.pmvpn-terminal-container {
-  flex: 1;
-  padding: 2px;
-}
-
-.pmvpn-terminal-container .xterm { height: 100%; }
-
 .pmvpn-placeholder {
   flex: 1;
   display: flex;
@@ -450,24 +394,77 @@ textarea.pmvpn-input {
   justify-content: center;
   flex-direction: column;
   gap: 8px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .pmvpn-placeholder-title {
   font-size: 24px;
   font-weight: 700;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   letter-spacing: 2px;
   font-family: 'JetBrains Mono', monospace;
+  opacity: 0.6;
 }
 
-.pmvpn-placeholder-sub {
-  font-size: 13px;
-  color: var(--muted-foreground);
+.pmvpn-placeholder-sub { font-size: 13px; }
+
+/* ══════════════════════════════════════════════════════
+   TERMINAL — Linux green-on-black with transparency
+   Post-connect: classic hacker terminal aesthetic
+   ══════════════════════════════════════════════════════ */
+
+.pmvpn-terminal-container {
+  flex: 1;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--terminal-border);
+  border-radius: var(--radius);
+  margin: 4px;
+  box-shadow:
+    inset 0 0 60px rgba(0, 255, 0, 0.03),
+    0 0 30px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+/* Subtle scanline overlay for CRT feel */
+.pmvpn-terminal-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 255, 0, 0.015) 0px,
+    rgba(0, 255, 0, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  border-radius: var(--radius);
+  z-index: 1;
+}
+
+/* Green glow border on terminal when active */
+.pmvpn-terminal-container.active {
+  border-color: rgba(51, 255, 51, 0.3);
+  box-shadow:
+    inset 0 0 60px rgba(0, 255, 0, 0.04),
+    0 0 20px rgba(51, 255, 51, 0.08),
+    0 0 60px rgba(0, 0, 0, 0.6);
+}
+
+.pmvpn-terminal-container .xterm { height: 100%; }
+
+/* Override xterm viewport for transparency */
+.pmvpn-terminal-container .xterm-viewport {
+  background: transparent !important;
+}
+
+.pmvpn-terminal-container .xterm-screen {
+  background: transparent !important;
 }
 
 /* ══════════════════════════════════════════════════════
-   LOG & STATUS BAR
+   LOG
    ══════════════════════════════════════════════════════ */
 
 .pmvpn-log {
@@ -481,15 +478,14 @@ textarea.pmvpn-input {
   background: var(--sidebar);
 }
 
-.pmvpn-log-entry {
-  padding: 1px 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
+.pmvpn-log-entry { padding: 1px 0; white-space: pre-wrap; word-break: break-all; }
 .pmvpn-log-entry.error { color: var(--destructive); }
 .pmvpn-log-entry.success { color: var(--success); }
 .pmvpn-log-entry.info { color: var(--info); }
+
+/* ══════════════════════════════════════════════════════
+   STATUS BAR
+   ══════════════════════════════════════════════════════ */
 
 .pmvpn-status {
   height: 30px;
@@ -514,19 +510,19 @@ textarea.pmvpn-input {
 }
 
 .pmvpn-status-dot.connected {
-  background: var(--success);
-  box-shadow: 0 0 8px rgba(158,206,106,0.5);
+  background: var(--terminal-fg);
+  box-shadow: 0 0 10px rgba(51,255,51,0.6);
 }
 
 .pmvpn-status-dot.connecting {
   background: var(--warning);
-  box-shadow: 0 0 8px rgba(224,175,104,0.5);
+  box-shadow: 0 0 8px rgba(249,226,175,0.5);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
 .pmvpn-status-dot.authenticating {
   background: var(--accent);
-  box-shadow: 0 0 8px rgba(187,154,247,0.5);
+  box-shadow: 0 0 8px rgba(203,166,247,0.5);
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -534,7 +530,7 @@ textarea.pmvpn-input {
 
 .pmvpn-status-dot.error {
   background: var(--destructive);
-  box-shadow: 0 0 8px rgba(247,118,142,0.5);
+  box-shadow: 0 0 8px rgba(243,139,168,0.5);
 }
 
 @keyframes pulse {
@@ -548,10 +544,7 @@ textarea.pmvpn-input {
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--muted);
-  border-radius: 3px;
-}
+::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 `;
 

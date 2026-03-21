@@ -322,24 +322,26 @@ export function createApp(): HTMLElement {
 
       placeholder.style.display = 'none';
       termContainer.style.display = '';
+      termContainer.className = 'pmvpn-terminal-container active';
       if (term) term.destroy();
       term = createTerminal();
       term.mount(termContainer);
 
       const t = term.terminal;
-      t.writeln('\x1b[1;34m╔══════════════════════════════════════════╗\x1b[0m');
-      t.writeln('\x1b[1;34m║\x1b[0m  \x1b[1;37mpmVPN\x1b[0m — Wallet-Authenticated SSH        \x1b[1;34m║\x1b[0m');
-      t.writeln('\x1b[1;34m╚══════════════════════════════════════════╝\x1b[0m');
       t.writeln('');
-      t.writeln(`  \x1b[36mConnection:\x1b[0m ${conn.name}`);
-      t.writeln(`  \x1b[36mWallet:\x1b[0m     ${address}`);
-      t.writeln(`  \x1b[36mServer:\x1b[0m     ${conn.host}:${conn.port}`);
-      t.writeln(`  \x1b[36mSigned:\x1b[0m     by MetaMask (key never exposed)`);
+      t.writeln('\x1b[1;32m  ╔══════════════════════════════════════════╗\x1b[0m');
+      t.writeln('\x1b[1;32m  ║\x1b[0m  \x1b[1;32mpmVPN\x1b[0m \x1b[32m— Wallet-Authenticated SSH\x1b[0m        \x1b[1;32m║\x1b[0m');
+      t.writeln('\x1b[1;32m  ╚══════════════════════════════════════════╝\x1b[0m');
       t.writeln('');
-      t.writeln('  \x1b[32m✓ Auth payload ready\x1b[0m');
+      t.writeln(`  \x1b[32mConnection:\x1b[0m \x1b[1;32m${conn.name}\x1b[0m`);
+      t.writeln(`  \x1b[32mWallet:\x1b[0m     \x1b[32m${address}\x1b[0m`);
+      t.writeln(`  \x1b[32mServer:\x1b[0m     \x1b[32m${conn.host}:${conn.port}\x1b[0m`);
+      t.writeln(`  \x1b[32mSigned:\x1b[0m     \x1b[32mby MetaMask (key never exposed)\x1b[0m`);
       t.writeln('');
-      t.writeln(`  \x1b[90m$ ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}\x1b[0m`);
-      t.writeln(`  \x1b[90m  Password: <paste from sidebar>\x1b[0m`);
+      t.writeln('  \x1b[1;32m✓ Auth payload ready\x1b[0m');
+      t.writeln('');
+      t.writeln(`  \x1b[32m$ ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}\x1b[0m`);
+      t.writeln(`  \x1b[32m  Password: <paste from sidebar>\x1b[0m`);
       t.writeln('');
       t.writeln('  \x1b[33mValid for 60 seconds, single use.\x1b[0m');
 
@@ -362,6 +364,7 @@ export function createApp(): HTMLElement {
     activeConnId = null;
     if (term) { term.destroy(); term = null; }
     termContainer.style.display = 'none';
+    termContainer.className = 'pmvpn-terminal-container';
     placeholder.style.display = '';
     payloadSection.style.display = 'none';
     setStatus('disconnected');
