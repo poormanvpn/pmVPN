@@ -113,14 +113,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] Encrypted messages signed by sender wallet
 - [ ] Receiver verifies signature before accepting
 
-### Phase 9: Claude Proxy
-
-- [ ] Claude CLI proxy on port +6
-- [ ] Dedicated Claude terminal tab per host
-- [ ] Multi-host Claude session management
-- [ ] Claude output streaming via tunnel
-
-### Phase 10: Multi-Host Management
+### Phase 8: Multi-Host Management
 
 - [ ] Connect to N machines simultaneously
 - [ ] Tab-based terminal switching
@@ -128,7 +121,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] Batch command execution across hosts
 - [ ] Host group management
 
-### Phase 11: Hardening & Mobile
+### Phase 9: Hardening & Mobile
 
 - [ ] Security audit (input validation, path traversal, replay)
 - [ ] TLS on HTTP ports (self-signed or Let's Encrypt)
