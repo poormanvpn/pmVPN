@@ -143,7 +143,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] WalletConnect v2 for mobile wallet signing
 - [ ] Tauri mobile targets (Android/iOS)
 - [ ] Responsive mobile layout
-- [ ] Docker production image
+- [ ] Podman container image (no Docker)
 
 ---
 

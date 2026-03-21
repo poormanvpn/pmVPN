@@ -311,6 +311,38 @@ textarea.pmvpn-input {
 .pmvpn-btn-remove { color: var(--muted-foreground); }
 .pmvpn-btn-remove:hover { color: var(--destructive); border-color: var(--destructive); }
 
+.pmvpn-btn-kill {
+  color: var(--warning);
+  font-size: 12px;
+}
+.pmvpn-btn-kill:hover {
+  color: var(--destructive);
+  border-color: var(--destructive);
+  background: rgba(243,139,168,0.08);
+}
+
+.pmvpn-btn-exit {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  margin-left: 4px;
+}
+
+.pmvpn-btn-exit:hover {
+  color: var(--destructive);
+  border-color: var(--destructive);
+  background: rgba(243,139,168,0.08);
+}
+
 /* ══════════════════════════════════════════════════════
    CONNECTION LIST
    ══════════════════════════════════════════════════════ */

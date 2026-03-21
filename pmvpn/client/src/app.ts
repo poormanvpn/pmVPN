@@ -87,7 +87,14 @@ export function createApp(): HTMLElement {
   logoutBtn.textContent = 'LOGOUT';
   logoutBtn.style.display = 'none';
   logoutBtn.addEventListener('click', doLogout);
-  headerRight.append(addrDisplay, logoutBtn);
+
+  const exitBtn = document.createElement('button');
+  exitBtn.className = 'pmvpn-btn-exit';
+  exitBtn.textContent = '✕';
+  exitBtn.title = 'Exit — kill all sessions and close';
+  exitBtn.addEventListener('click', doExit);
+
+  headerRight.append(addrDisplay, logoutBtn, exitBtn);
   header.appendChild(headerRight);
 
   const body = mk('div', 'pmvpn-body');
@@ -410,13 +417,26 @@ export function createApp(): HTMLElement {
       `;
       info.addEventListener('click', () => doConnectTo(conn));
 
+      // Kill button — disconnect this specific session
+      if (conn.status === 'connected') {
+        const killBtn = document.createElement('button');
+        killBtn.className = 'pmvpn-btn-icon pmvpn-btn-kill';
+        killBtn.textContent = '⏻';
+        killBtn.title = 'Kill this connection';
+        killBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          killConnection(conn);
+        });
+        item.appendChild(killBtn);
+      }
+
       const removeBtn = document.createElement('button');
       removeBtn.className = 'pmvpn-btn-icon pmvpn-btn-remove';
       removeBtn.textContent = '−';
       removeBtn.title = 'Remove connection';
       removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (activeConnId === conn.id) doDisconnect();
+        killConnection(conn);
         connections = connections.filter(c => c.id !== conn.id);
         saveConnections();
         renderConnections();
@@ -719,36 +739,86 @@ export function createApp(): HTMLElement {
     }
   }
 
+  // Kill a specific connection — clean disconnect + DOM cleanup
+  function killConnection(conn: Connection) {
+    const session = sessions.get(conn.id);
+    if (session) {
+      log(`killing: ${conn.name}`, 'info');
+      session.term.destroy();
+      session.termEl.remove();
+      session.filesEl.remove();
+      session.shareEl.remove();
+      sessions.delete(conn.id);
+    }
+    conn.status = 'offline';
+    conn.payload = null;
+
+    // If this was the active connection, switch or show placeholder
+    if (activeConnId === conn.id) {
+      const remaining = Array.from(sessions.keys());
+      if (remaining.length > 0) {
+        activeConnId = remaining[0];
+        showSession(activeConnId);
+      } else {
+        activeConnId = null;
+        tabBar.style.display = 'none';
+        placeholder.style.display = '';
+        payloadSection.style.display = 'none';
+      }
+    }
+    setStatus(sessions.size > 0 ? 'connected' : 'disconnected');
+    renderConnections();
+    log(`${conn.name}: killed (${sessions.size} remaining)`, 'info');
+  }
+
   function doDisconnect() {
     if (activeConnId) {
       const conn = connections.find(c => c.id === activeConnId);
-      if (conn) { conn.status = 'offline'; conn.payload = null; }
-
-      // Destroy this session
-      const session = sessions.get(activeConnId);
-      if (session) {
-        session.term.destroy();
-        session.termEl.remove();
-        session.filesEl.remove();
-        session.shareEl.remove();
-        sessions.delete(activeConnId);
-      }
+      if (conn) killConnection(conn);
     }
+  }
 
-    // Switch to next active session or show placeholder
-    const remaining = Array.from(sessions.keys());
-    if (remaining.length > 0) {
-      activeConnId = remaining[0];
-      showSession(activeConnId);
-    } else {
-      activeConnId = null;
-      tabBar.style.display = 'none';
-      placeholder.style.display = '';
+  // ── Exit — clean shutdown ──
+  async function doExit() {
+    // Kill all sessions
+    for (const [, session] of sessions) {
+      session.term.destroy();
+      session.termEl.remove();
+      session.filesEl.remove();
+      session.shareEl.remove();
     }
-    payloadSection.style.display = 'none';
-    setStatus('disconnected');
-    renderConnections();
-    log('disconnected', 'info');
+    sessions.clear();
+
+    // Reset all connections
+    for (const conn of connections) {
+      conn.status = 'offline';
+      conn.payload = null;
+    }
+    activeConnId = null;
+
+    // Disconnect wallet
+    await disconnect();
+
+    // Clear all state
+    localStorage.removeItem('pmvpn-wallet-address');
+    sessionStorage.clear();
+
+    // Close the page
+    log('exiting — all sessions killed, wallet disconnected', 'success');
+
+    // Replace page content with clean exit message
+    document.body.innerHTML = '';
+    const exit = document.createElement('div');
+    exit.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;background:#1e2030;color:#7f849c;font-family:monospace;font-size:14px;flex-direction:column;gap:8px';
+    exit.innerHTML = `
+      <div style="font-size:20px;color:#a6e3a1">pmVPN closed</div>
+      <div>all sessions terminated · wallet disconnected</div>
+      <div style="margin-top:16px;font-size:12px;color:#3b3f5c">close this tab or refresh to restart</div>
+    `;
+    document.body.appendChild(exit);
+
+    // Try to close the tab (works if we opened it)
+    try { window.close(); } catch {}
   }
 
   // MetaMask account changes
@@ -767,6 +837,14 @@ export function createApp(): HTMLElement {
   });
 
   renderConnections();
+  // Clean shutdown on page close
+  window.addEventListener('beforeunload', () => {
+    for (const [, session] of sessions) {
+      session.term.disconnect();
+    }
+    disconnect().catch(() => {});
+  });
+
   log('pmvpn ready', 'info');
   log('local server: localhost:2200', 'info');
   if (!hasMetaMask()) log('MetaMask not detected — install browser extension', 'error');
