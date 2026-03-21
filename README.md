@@ -1,17 +1,41 @@
 <h1 align="center">poormanvpn</h1>
 <p align="center"><em>Wallet-authenticated remote access for the sovereign internet</em></p>
 
-<p align="center">
+<div align="center">
   <a href="pmvpn/">
-    <img src="poormanvpn.jpg" alt="pmVPN Architecture" width="380" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 80px rgba(63,185,80,0.1); transform: perspective(800px) rotateY(2deg) rotateX(-1deg); border: 1px solid rgba(63,185,80,0.2); margin-top: 12px;" />
+    <picture>
+      <img src="poormanvpn.jpg" alt="pmVPN" width="460" style="
+        border-radius: 20px;
+        box-shadow:
+          0 25px 80px rgba(0,0,0,0.7),
+          0 0 140px rgba(63,185,80,0.15),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        transform: perspective(1200px) rotateY(2.5deg) rotateX(-1.5deg) translateZ(20px);
+        border: 1px solid rgba(63,185,80,0.25);
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+      " />
+    </picture>
   </a>
-</p>
+</div>
 
-<p align="center">
+<br />
+
+<div align="center">
   <a href="https://agenticplace.pythai.net">
-    <img src="agenticplace.jpg" alt="AgenticPlace" width="320" style="border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 60px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1deg); border: 1px solid rgba(188,140,255,0.2);" />
+    <picture>
+      <img src="agenticplace.jpg" alt="AgenticPlace" width="360" style="
+        border-radius: 16px;
+        box-shadow:
+          0 20px 60px rgba(0,0,0,0.6),
+          0 0 100px rgba(188,140,255,0.15),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+        transform: perspective(1200px) rotateY(-2deg) rotateX(1deg) translateZ(10px);
+        border: 1px solid rgba(188,140,255,0.25);
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+      " />
+    </picture>
   </a>
-</p>
+</div>
 
 ---
 
@@ -163,23 +187,39 @@ The poor man's VPN is not a new idea. It is an old one, refined.
 
 <table align="center">
   <tr>
-    <td align="center" width="280">
+    <td align="center" width="300" style="padding: 24px;">
       <a href="https://github.com/Professor-Codephreak">
-        <img src="https://github.com/Professor-Codephreak.png" width="120" style="border-radius: 50%; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(88,166,255,0.2); border: 2px solid rgba(88,166,255,0.3);" />
+        <img src="https://github.com/Professor-Codephreak.png" width="140" style="
+          border-radius: 50%;
+          box-shadow:
+            0 12px 40px rgba(0,0,0,0.6),
+            0 0 80px rgba(88,166,255,0.25),
+            0 0 2px rgba(88,166,255,0.5);
+          border: 3px solid rgba(88,166,255,0.35);
+          transform: perspective(600px) translateZ(15px);
+        " />
       </a>
-      <br />
+      <br /><br />
       <strong><a href="https://github.com/Professor-Codephreak">Professor Codephreak</a></strong>
       <br />
-      <sub>cSSHwallet prototypes · bankon-greeter auth<br />cypherpunk2048 protocol · PARSEC Wallet · bankonOS</sub>
+      <sub>cSSHwallet prototypes · bankon-greeter auth pattern<br />cypherpunk2048 protocol · PARSEC Wallet · bankonOS<br /><em>Wallet-as-login-key architect</em></sub>
     </td>
-    <td align="center" width="280">
+    <td align="center" width="300" style="padding: 24px;">
       <a href="https://github.com/Web3dGuy">
-        <img src="https://github.com/Web3dGuy.png" width="120" style="border-radius: 50%; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(63,185,80,0.2); border: 2px solid rgba(63,185,80,0.3);" />
+        <img src="https://github.com/Web3dGuy.png" width="140" style="
+          border-radius: 50%;
+          box-shadow:
+            0 12px 40px rgba(0,0,0,0.6),
+            0 0 80px rgba(63,185,80,0.25),
+            0 0 2px rgba(63,185,80,0.5);
+          border: 3px solid rgba(63,185,80,0.35);
+          transform: perspective(600px) translateZ(15px);
+        " />
       </a>
-      <br />
+      <br /><br />
       <strong><a href="https://github.com/Web3dGuy">Web3dGuy</a></strong>
       <br />
-      <sub>Wallet-authenticated SSH concept<br />3D immersive web · Web3 development</sub>
+      <sub>Wallet-authenticated SSH concept · Web3 development<br />3D immersive experience · Spatial interface<br /><em>Wallet-as-login-key architect</em></sub>
     </td>
   </tr>
 </table>
