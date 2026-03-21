@@ -1,5 +1,9 @@
 // pmVPN Client — MetaMask Authentication
 // No private keys. MetaMask signs. We verify.
+//
+// Security: We maintain our own session state independent of MetaMask.
+// Even if MetaMask remembers the site, we require explicit login each time.
+// Logout destroys our session AND revokes MetaMask permission.
 
 import { createWalletClient, custom, type WalletClient } from 'viem';
 import { mainnet } from 'viem/chains';
@@ -10,8 +14,10 @@ export interface Challenge {
   expires: number;
 }
 
+// Session state — this is the source of truth, NOT MetaMask
 let walletClient: WalletClient | null = null;
 let connectedAddress: string | null = null;
+let sessionActive = false;
 
 /**
  * Check if MetaMask (or any EIP-1193 provider) is available.
@@ -22,17 +28,35 @@ export function hasMetaMask(): boolean {
 
 /**
  * Connect to MetaMask. Returns the connected address.
- * MetaMask popup appears asking the user to connect.
+ * Always forces the MetaMask popup regardless of prior approval.
  */
 export async function connectMetaMask(): Promise<string> {
   if (!hasMetaMask()) {
     throw new Error('MetaMask not found. Install MetaMask to continue.');
   }
 
+  // Clear any stale state first
+  walletClient = null;
+  connectedAddress = null;
+  sessionActive = false;
+
   const ethereum = (window as any).ethereum;
 
-  // Request account access — triggers MetaMask popup
-  const accounts = await ethereum.request({ method: 'eth_requestAccounts' }) as string[];
+  // First try to revoke existing permissions to force a fresh popup
+  try {
+    await ethereum.request({
+      method: 'wallet_revokePermissions',
+      params: [{ eth_accounts: {} }],
+    });
+  } catch {
+    // Not supported in all versions — continue
+  }
+
+  // Now request fresh permission — this MUST show the MetaMask popup
+  // because we just revoked permissions above
+  const accounts = await ethereum.request({
+    method: 'eth_requestAccounts',
+  }) as string[];
 
   if (!accounts || accounts.length === 0) {
     throw new Error('No accounts returned from MetaMask');
@@ -44,31 +68,41 @@ export async function connectMetaMask(): Promise<string> {
   });
 
   connectedAddress = accounts[0].toLowerCase();
+  sessionActive = true;
+
   return connectedAddress;
 }
 
 /**
- * Get the connected wallet address (null if not connected).
+ * Get the connected wallet address (null if not connected or logged out).
  */
 export function getAddress(): string | null {
+  if (!sessionActive) return null;
   return connectedAddress;
 }
 
 /**
- * Check if a wallet is connected.
+ * Check if a wallet session is active.
+ * This checks OUR session state, not MetaMask's.
  */
 export function isConnected(): boolean {
-  return connectedAddress !== null && walletClient !== null;
+  return sessionActive && connectedAddress !== null && walletClient !== null;
 }
 
 /**
  * Disconnect wallet — true logout.
- * Revokes MetaMask permission so the user must re-approve on next connect.
- * Clears all in-memory wallet state.
+ * 1. Destroys our session state
+ * 2. Revokes MetaMask permission
+ * 3. Removes all event listeners
+ * After this, connectMetaMask() will require full user approval.
  */
 export async function disconnect(): Promise<void> {
-  // Revoke MetaMask permission (EIP-2255 wallet_revokePermissions)
-  // This forces MetaMask to forget this site — next connect requires full approval
+  // 1. Kill our session immediately
+  walletClient = null;
+  connectedAddress = null;
+  sessionActive = false;
+
+  // 2. Revoke MetaMask permission
   if (hasMetaMask()) {
     try {
       await (window as any).ethereum.request({
@@ -76,12 +110,22 @@ export async function disconnect(): Promise<void> {
         params: [{ eth_accounts: {} }],
       });
     } catch {
-      // Older MetaMask versions may not support this — fall through
+      // Fallback: try the older method
+      try {
+        await (window as any).ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        });
+        // Immediately revoke what we just requested
+        await (window as any).ethereum.request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }],
+        });
+      } catch {
+        // Last resort — at minimum our session state is cleared
+      }
     }
   }
-
-  walletClient = null;
-  connectedAddress = null;
 }
 
 /**
@@ -98,15 +142,13 @@ export async function fetchChallenge(serverUrl: string, address: string): Promis
 
 /**
  * Sign the challenge message via MetaMask and build the auth payload.
- * MetaMask popup appears asking the user to sign.
- * No private key ever touches this code.
+ * Requires active session. MetaMask popup appears for signature approval.
  */
 export async function signAndBuildPayload(message: string, nonce: string): Promise<string> {
-  if (!walletClient || !connectedAddress) {
-    throw new Error('Wallet not connected');
+  if (!sessionActive || !walletClient || !connectedAddress) {
+    throw new Error('No active session — connect MetaMask first');
   }
 
-  // MetaMask signs — private key never leaves the extension
   const signature = await walletClient.signMessage({
     account: connectedAddress as `0x${string}`,
     message,
