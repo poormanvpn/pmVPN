@@ -252,27 +252,36 @@ export function createApp(): HTMLElement {
   }
 
   // ── Logout — true logout, no trace ──
+  // Kills every connection, wipes every payload, revokes MetaMask,
+  // clears all state. After this, the user must click Connect MetaMask
+  // and approve in MetaMask again. No auto-reconnect. No residual data.
   async function doLogout() {
-    // Disconnect all sessions
+    // 1. Kill every connection and wipe every payload
     for (const conn of connections) {
       conn.status = 'offline';
       conn.payload = null;
     }
     activeConnId = null;
 
-    // Destroy terminal
+    // 2. Destroy terminal completely
     if (term) { term.destroy(); term = null; }
     termContainer.style.display = 'none';
+    termContainer.className = 'pmvpn-terminal-container';
     placeholder.style.display = '';
-    payloadSection.style.display = 'none';
 
-    // Revoke MetaMask permission + clear wallet state
+    // 3. Wipe payload display — no auth data left visible
+    payloadSection.style.display = 'none';
+    payloadArea.value = '';
+    sshHint.innerHTML = '';
+
+    // 4. Revoke MetaMask permission + kill session state
     await disconnect();
 
-    // Clear any cached wallet data from localStorage
+    // 5. Clear ALL persisted wallet/session data
     localStorage.removeItem('pmvpn-wallet-address');
+    sessionStorage.clear();
 
-    // Reset UI completely
+    // 6. Reset UI to fresh state — as if visiting for the first time
     walletInfo.style.display = 'none';
     walletInfo.innerHTML = '';
     metamaskBtn.style.display = '';
@@ -283,7 +292,7 @@ export function createApp(): HTMLElement {
 
     setStatus('disconnected');
     renderConnections();
-    log('Logged out — MetaMask permission revoked, all sessions cleared', 'success');
+    log('Logged out — wallet revoked, all sessions destroyed, no residual data', 'success');
   }
 
   function setStatus(s: string) {
