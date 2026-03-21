@@ -169,7 +169,7 @@ export function createApp(): HTMLElement {
   const placeholder = mk('div', 'pmvpn-placeholder', `
     <div class="pmvpn-placeholder-title">pmVPN</div>
     <div class="pmvpn-placeholder-sub">Connect MetaMask → Select connection → Authenticate</div>
-    <div class="pmvpn-placeholder-sub" style="margin-top:16px;font-size:11px;color:#30363d;max-width:400px;text-align:center">
+    <div class="pmvpn-placeholder-sub" style="margin-top:16px;font-size:12px;color:var(--muted-foreground);max-width:400px;text-align:center">
       Your private key never leaves MetaMask.<br>
       pmVPN only sees your address and signature.
     </div>
