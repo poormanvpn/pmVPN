@@ -14,6 +14,8 @@ import { injectStyles } from './style';
 import { hasMetaMask, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
 import { createFileBrowser } from './files';
+import { bootstrapServer, deploySSHKey } from './bootstrap';
+import { exportProfiles, importProfiles } from './hostkeys';
 injectStyles();
 
 interface Connection {
@@ -174,7 +176,68 @@ export function createApp(): HTMLElement {
   diagBtn.addEventListener('click', runDiagnostics);
   diagSection.append(diagBtn, diagResults);
 
-  sidebar.append(walletSection, connSection, payloadSection, diagSection);
+  // ── Tools Section ──
+  const toolsSection = mk('div', 'pmvpn-section');
+  toolsSection.innerHTML = '<h3>Tools</h3>';
+
+  const bootstrapBtn = document.createElement('button');
+  bootstrapBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  bootstrapBtn.textContent = 'Bootstrap Remote Server';
+  bootstrapBtn.addEventListener('click', async () => {
+    if (!term?.isConnected()) { log('connect to a server first', 'error'); return; }
+    const address = getAddress();
+    if (!address) { log('connect MetaMask first', 'error'); return; }
+    const conn = connections.find(c => c.id === activeConnId);
+    const port = prompt('Base port for new pmVPN server:', '8200');
+    if (!port) return;
+    await bootstrapServer(term, address, conn?.name || 'user', parseInt(port), log);
+  });
+
+  const deployKeyBtn = document.createElement('button');
+  deployKeyBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  deployKeyBtn.textContent = 'Deploy SSH Key';
+  deployKeyBtn.addEventListener('click', async () => {
+    if (!term?.isConnected()) { log('connect to a server first', 'error'); return; }
+    const address = getAddress();
+    if (!address) { log('connect MetaMask first', 'error'); return; }
+    await deploySSHKey(term, address, log);
+  });
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  exportBtn.textContent = 'Export Profiles';
+  exportBtn.addEventListener('click', () => {
+    const json = exportProfiles();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'pmvpn-profiles.json'; a.click();
+    URL.revokeObjectURL(url);
+    log('profiles exported', 'success');
+  });
+
+  const importBtn = document.createElement('button');
+  importBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  importBtn.textContent = 'Import Profiles';
+  importBtn.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const result = importProfiles(text);
+      log(`imported: ${result.connections} connections, ${result.keys} host keys`, 'success');
+      // Reload connections from localStorage
+      connections = JSON.parse(localStorage.getItem('pmvpn-connections') || '[]');
+      renderConnections();
+    });
+    input.click();
+  });
+
+  toolsSection.append(bootstrapBtn, deployKeyBtn, exportBtn, importBtn);
+
+  sidebar.append(walletSection, connSection, payloadSection, diagSection, toolsSection);
 
   // ── Main: Terminal ──
   const placeholder = mk('div', 'pmvpn-placeholder', `

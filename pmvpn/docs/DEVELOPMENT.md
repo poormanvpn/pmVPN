@@ -79,15 +79,19 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Transparent favicon and logo from poormanvpn.png
 - [x] Auto-reconnect to known servers (saved connections)
 
-### Phase 5: Bootstrap & Persistence 🔄
+### Phase 5: Bootstrap & Persistence ✅
 
 - [x] Bootstrap documentation (user/admin/zero-SSH methods)
-- [ ] Automated server upload via SFTP channel
-- [ ] Automated install script execution via SSH exec
-- [ ] Ed25519 key exchange for persistent `authorized_keys`
-- [ ] Self-protection in `authorized_keys` (pmvpn: markers)
-- [ ] Host key TOFU (trust on first use) verification
-- [ ] Connection profile export/import
+- [x] Automated server bootstrap via SFTP (uploads wallets.json, install.sh, start.sh)
+- [x] Install script: checks Node.js, installs nvm/pnpm if needed, clones pmVPN, installs deps
+- [x] Start script: launches server on configurable unprivileged port
+- [x] Ed25519 key deploy script for persistent `authorized_keys`
+- [x] Self-protection in `authorized_keys` (pmvpn:wallet:timestamp markers)
+- [x] Host key TOFU verification (localStorage, first-seen/last-seen tracking)
+- [x] Host key mismatch detection (possible MITM warning)
+- [x] Connection profile export (JSON: connections + host keys)
+- [x] Connection profile import (merge without duplicates)
+- [x] Tools panel in sidebar: Bootstrap, Deploy Key, Export, Import
 
 ### Phase 6: P2P File Sharing
 
