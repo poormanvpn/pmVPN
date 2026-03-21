@@ -149,6 +149,15 @@ The poor man's VPN is not a new idea. It is an old one, refined.
 
 ---
 
+## Contributors
+
+| | Contributor | GitHub |
+|---|---|---|
+| <img src="https://github.com/Professor-Codephreak.png" width="40" /> | **Professor Codephreak** | [@Professor-Codephreak](https://github.com/Professor-Codephreak) |
+| <img src="https://github.com/Web3dGuy.png" width="40" /> | **Web3dGuy** | [@Web3dGuy](https://github.com/Web3dGuy) |
+
+---
+
 <p align="center">
   <strong>Code is law. Keys are identity. Verification replaces trust.</strong>
 </p>

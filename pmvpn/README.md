@@ -233,6 +233,15 @@ pmVPN stands on the shoulders of projects and people who built the infrastructur
 
 ---
 
+## Contributors
+
+| | Contributor | Role |
+|---|---|---|
+| <img src="https://github.com/Professor-Codephreak.png" width="40" /> | **[@Professor-Codephreak](https://github.com/Professor-Codephreak)** | The idea that a wallet key is the login key. cSSHwallet prototypes, bankon-greeter auth pattern, cypherpunk2048 protocol, PARSEC Wallet, bankonOS |
+| <img src="https://github.com/Web3dGuy.png" width="40" /> | **[@Web3dGuy](https://github.com/Web3dGuy)** | The idea that a wallet key is the login key. Wallet-authenticated SSH concept and development |
+
+---
+
 <p align="center">
   <em>Code is law. Keys are identity. Verification replaces trust.</em>
 </p>
