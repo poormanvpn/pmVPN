@@ -215,7 +215,7 @@ body {
   box-shadow: 0 0 0 2px rgba(137,180,250,0.15);
 }
 
-.pmvpn-input::placeholder { color: var(--muted); }
+.pmvpn-input::placeholder { color: var(--muted-foreground); opacity: 0.7; }
 
 textarea.pmvpn-input {
   resize: vertical;
