@@ -28,10 +28,20 @@ interface Connection {
   payload: string | null;
 }
 
-let term: TerminalInstance | null = null;
+// Per-connection session: terminal + file browser + share panel
+interface HostSession {
+  term: TerminalInstance;
+  fileBrowser: ReturnType<typeof createFileBrowser>;
+  sharePanel: ReturnType<typeof createSharePanel>;
+  termEl: HTMLElement;
+  filesEl: HTMLElement;
+  shareEl: HTMLElement;
+}
+
 let logEl: HTMLElement;
 let connections: Connection[] = JSON.parse(localStorage.getItem('pmvpn-connections') || '[]');
 let activeConnId: string | null = null;
+const sessions = new Map<string, HostSession>(); // per-connection sessions
 
 // Ensure localhost default exists
 if (!connections.find(c => c.host === 'localhost' && c.port === '2200')) {
@@ -249,9 +259,7 @@ export function createApp(): HTMLElement {
       pmVPN only sees your address and signature.
     </div>
   `);
-  const termContainer = mk('div', 'pmvpn-terminal-container');
-  termContainer.style.display = 'none';
-  main.append(placeholder, termContainer);
+  main.appendChild(placeholder);
 
   // ── Log & Status ──
   logEl = mk('div', 'pmvpn-log');
@@ -477,10 +485,15 @@ export function createApp(): HTMLElement {
       log(`${activeCount} SSH connection(s) terminated`, 'info');
     }
 
-    // 2. Destroy terminal completely
-    if (term) { term.destroy(); term = null; }
-    termContainer.style.display = 'none';
-    termContainer.className = 'pmvpn-terminal-container';
+    // 2. Destroy ALL sessions
+    for (const [id, session] of sessions) {
+      session.term.destroy();
+      session.termEl.remove();
+      session.filesEl.remove();
+      session.shareEl.remove();
+    }
+    sessions.clear();
+    tabBar.style.display = 'none';
     placeholder.style.display = '';
 
     // 3. Wipe payload display — no auth data left visible
@@ -514,7 +527,10 @@ export function createApp(): HTMLElement {
     document.getElementById('sd')!.className = `pmvpn-status-dot ${s}`;
     document.getElementById('st')!.textContent = s[0].toUpperCase() + s.slice(1);
     const active = connections.find(c => c.id === activeConnId);
-    document.getElementById('si')!.textContent = active ? `${active.host}:${active.port}` : '';
+    const sessionCount = sessions.size;
+    const info = active ? `${active.host}:${active.port}` : '';
+    const multi = sessionCount > 1 ? ` · ${sessionCount} sessions` : '';
+    document.getElementById('si')!.textContent = info + multi;
   }
 
   // ── Tab switching ──
@@ -530,38 +546,86 @@ export function createApp(): HTMLElement {
   tabShare.addEventListener('click', () => switchTab('share'));
   tabBar.append(tabTerminal, tabFiles, tabShare);
   tabBar.style.display = 'none';
-  main.insertBefore(tabBar, termContainer);
+  main.insertBefore(tabBar, placeholder);
 
-  const filesContainer = mk('div', 'pmvpn-files-container');
-  filesContainer.style.display = 'none';
-  main.appendChild(filesContainer);
-
-  const shareContainer = mk('div', 'pmvpn-share-container');
-  shareContainer.style.display = 'none';
-  main.appendChild(shareContainer);
+  // Per-host containers are created dynamically in doConnectTo()
 
   function switchTab(tab: 'terminal' | 'files' | 'share') {
     activeTab = tab;
     tabTerminal.className = `pmvpn-tab ${tab === 'terminal' ? 'active' : ''}`;
     tabFiles.className = `pmvpn-tab ${tab === 'files' ? 'active' : ''}`;
     tabShare.className = `pmvpn-tab ${tab === 'share' ? 'active' : ''}`;
-    termContainer.style.display = tab === 'terminal' ? '' : 'none';
-    filesContainer.style.display = tab === 'files' ? '' : 'none';
-    shareContainer.style.display = tab === 'share' ? '' : 'none';
-    if (tab === 'terminal' && term) {
-      requestAnimationFrame(() => term!.fitAddon.fit());
+
+    // Hide all session containers, then show active session's container for this tab
+    for (const [, session] of sessions) {
+      session.termEl.style.display = 'none';
+      session.filesEl.style.display = 'none';
+      session.shareEl.style.display = 'none';
     }
-    if (tab === 'files' && fileBrowser) {
-      fileBrowser.refresh();
+
+    if (activeConnId) {
+      const session = sessions.get(activeConnId);
+      if (session) {
+        if (tab === 'terminal') {
+          session.termEl.style.display = '';
+          requestAnimationFrame(() => session.term.fitAddon.fit());
+        } else if (tab === 'files') {
+          session.filesEl.style.display = '';
+          session.fileBrowser?.refresh();
+        } else if (tab === 'share') {
+          session.shareEl.style.display = '';
+          session.sharePanel?.refresh();
+        }
+      }
     }
-    if (tab === 'share' && sharePanel) {
-      sharePanel.refresh();
+  }
+
+  // ── Show a specific host's session (switch between connected hosts) ──
+  function showSession(connId: string) {
+    // Hide all sessions
+    for (const [id, session] of sessions) {
+      session.termEl.style.display = 'none';
+      session.filesEl.style.display = 'none';
+      session.shareEl.style.display = 'none';
+    }
+
+    const session = sessions.get(connId);
+    if (!session) return;
+
+    // Show active session based on current tab
+    placeholder.style.display = 'none';
+    tabBar.style.display = '';
+    if (activeTab === 'terminal') {
+      session.termEl.style.display = '';
+      requestAnimationFrame(() => session.term.fitAddon.fit());
+    } else if (activeTab === 'files') {
+      session.filesEl.style.display = '';
+      session.fileBrowser.refresh();
+    } else if (activeTab === 'share') {
+      session.shareEl.style.display = '';
+      session.sharePanel.refresh();
+    }
+
+    // Update payload display
+    const conn = connections.find(c => c.id === connId);
+    if (conn?.payload) {
+      payloadSection.style.display = '';
+      payloadArea.value = conn.payload;
+      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
     }
   }
 
   // ── Connect to a specific connection — REAL WebSocket ──
   async function doConnectTo(conn: Connection) {
     if (!isConnected()) { log('connect MetaMask first', 'error'); return; }
+
+    // If already connected, just switch to it
+    if (sessions.has(conn.id)) {
+      activeConnId = conn.id;
+      showSession(conn.id);
+      renderConnections();
+      return;
+    }
 
     const address = getAddress()!;
     const challengePort = parseInt(conn.port) + 3;
@@ -570,63 +634,82 @@ export function createApp(): HTMLElement {
     renderConnections();
 
     try {
-      // Step 1: Fetch challenge
       setStatus('connecting');
       log(`${conn.name}: fetching challenge...`, 'info');
       const challenge = await fetchChallenge(`http://${conn.host}:${challengePort}`, address);
       log(`${conn.name}: nonce ${challenge.nonce.slice(0, 12)}...`, 'info');
 
-      // Step 2: Sign with MetaMask
       setStatus('authenticating');
       log(`${conn.name}: signing...`, 'info');
       const payload = await signAndBuildPayload(challenge.message, challenge.nonce);
       log(`${conn.name}: signed`, 'success');
 
       conn.payload = payload;
-      payloadSection.style.display = '';
-      payloadArea.value = payload;
-      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
 
-      // Step 3: Show terminal + tabs
-      placeholder.style.display = 'none';
-      termContainer.style.display = '';
-      termContainer.className = 'pmvpn-terminal-container active';
-      tabBar.style.display = '';
-      if (term) term.destroy();
-      term = createTerminal();
-      term.mount(termContainer);
+      // Create per-host DOM containers
+      const termEl = mk('div', 'pmvpn-terminal-container active');
+      const filesEl = mk('div', 'pmvpn-files-container');
+      const shareEl = mk('div', 'pmvpn-share-container');
+      filesEl.style.display = 'none';
+      shareEl.style.display = 'none';
+      main.appendChild(termEl);
+      main.appendChild(filesEl);
+      main.appendChild(shareEl);
 
-      // Step 4: Connect via WebSocket
+      // Create terminal for this host
+      const hostTerm = createTerminal();
+      hostTerm.mount(termEl);
+
       log(`${conn.name}: connecting ws://${conn.host}:${wsPort}...`, 'info');
 
-      term.connectWs(`ws://${conn.host}:${wsPort}`, payload, (ok, user, error) => {
+      hostTerm.connectWs(`ws://${conn.host}:${wsPort}`, payload, (ok, user, error) => {
         if (ok) {
           conn.status = 'connected';
           setStatus('connected');
           renderConnections();
           log(`${conn.name}: live terminal as ${user}`, 'success');
 
-          // Step 5: Initialize file browser
-          fileBrowser = createFileBrowser(term!, log);
-          filesContainer.innerHTML = '';
-          filesContainer.appendChild(fileBrowser.element);
-          fileBrowser.refresh();
+          // Create file browser and share panel for this host
+          const fb = createFileBrowser(hostTerm, log);
+          filesEl.appendChild(fb.element);
+          fb.refresh();
 
-          // Step 6: Initialize share panel
-          sharePanel = createSharePanel(term!, getAddress()!, conn.host, conn.port, log);
-          shareContainer.innerHTML = '';
-          shareContainer.appendChild(sharePanel.element);
-          sharePanel.refresh();
+          const sp = createSharePanel(hostTerm, getAddress()!, conn.host, conn.port, log);
+          shareEl.appendChild(sp.element);
+          sp.refresh();
+
+          // Store session
+          sessions.set(conn.id, {
+            term: hostTerm,
+            fileBrowser: fb,
+            sharePanel: sp,
+            termEl,
+            filesEl,
+            shareEl,
+          });
+
+          // Show this session
+          showSession(conn.id);
+          log(`${conn.name}: connected (${sessions.size} active session${sessions.size > 1 ? 's' : ''})`, 'success');
         } else {
           conn.status = 'error';
           setStatus('error');
           renderConnections();
           log(`${conn.name}: auth failed — ${error}`, 'error');
-          // Fall back to payload mode
-          term!.terminal.writeln(`\r\n\x1b[31mWebSocket auth failed: ${error}\x1b[0m`);
-          term!.terminal.writeln(`\x1b[33mUse the auth payload as SSH password instead.\x1b[0m`);
+          hostTerm.terminal.writeln(`\r\n\x1b[31mWebSocket auth failed: ${error}\x1b[0m`);
+          hostTerm.terminal.writeln(`\x1b[33mUse auth payload as SSH password instead.\x1b[0m`);
+          // Still store the session for payload mode
+          sessions.set(conn.id, { term: hostTerm, fileBrowser: null as any, sharePanel: null as any, termEl, filesEl, shareEl });
+          showSession(conn.id);
         }
       });
+
+      // Show tabs and payload
+      placeholder.style.display = 'none';
+      tabBar.style.display = '';
+      payloadSection.style.display = '';
+      payloadArea.value = payload;
+      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
 
     } catch (e: any) {
       conn.status = 'error';
@@ -640,19 +723,28 @@ export function createApp(): HTMLElement {
     if (activeConnId) {
       const conn = connections.find(c => c.id === activeConnId);
       if (conn) { conn.status = 'offline'; conn.payload = null; }
+
+      // Destroy this session
+      const session = sessions.get(activeConnId);
+      if (session) {
+        session.term.destroy();
+        session.termEl.remove();
+        session.filesEl.remove();
+        session.shareEl.remove();
+        sessions.delete(activeConnId);
+      }
     }
-    activeConnId = null;
-    if (term) { term.destroy(); term = null; }
-    fileBrowser = null;
-    sharePanel = null;
-    filesContainer.innerHTML = '';
-    filesContainer.style.display = 'none';
-    shareContainer.innerHTML = '';
-    shareContainer.style.display = 'none';
-    termContainer.style.display = 'none';
-    termContainer.className = 'pmvpn-terminal-container';
-    tabBar.style.display = 'none';
-    placeholder.style.display = '';
+
+    // Switch to next active session or show placeholder
+    const remaining = Array.from(sessions.keys());
+    if (remaining.length > 0) {
+      activeConnId = remaining[0];
+      showSession(activeConnId);
+    } else {
+      activeConnId = null;
+      tabBar.style.display = 'none';
+      placeholder.style.display = '';
+    }
     payloadSection.style.display = 'none';
     setStatus('disconnected');
     renderConnections();

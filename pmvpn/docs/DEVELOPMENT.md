@@ -121,13 +121,17 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Message replay protection (unique nonce per message)
 - [x] Expiry detection (24-hour default)
 
-### Phase 8: Multi-Host Management
+### Phase 8: Multi-Host Management ✅
 
-- [ ] Connect to N machines simultaneously
-- [ ] Tab-based terminal switching
-- [ ] 8-port status indicators per host
-- [ ] Batch command execution across hosts
-- [ ] Host group management
+- [x] Connect to N machines simultaneously (each gets own WebSocket session)
+- [x] Per-host terminal, file browser, and share panel (independent DOM containers)
+- [x] Click connection in sidebar to switch between hosts
+- [x] Tab switching (Terminal/Files/Share) shows the active host's session
+- [x] Disconnect one host without affecting others (session cleanup, DOM removal)
+- [x] Status bar shows active host + total session count
+- [x] Logout destroys ALL sessions simultaneously
+- [ ] Batch command execution across hosts (future)
+- [ ] Host group management (future)
 
 ### Phase 9: Hardening & Mobile
 
