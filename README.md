@@ -20,23 +20,6 @@
 
 <br />
 
-<div align="center">
-  <a href="https://agenticplace.pythai.net">
-    <picture>
-      <img src="agenticplace.jpg" alt="AgenticPlace" width="360" style="
-        border-radius: 16px;
-        box-shadow:
-          0 20px 60px rgba(0,0,0,0.6),
-          0 0 100px rgba(188,140,255,0.15),
-          inset 0 1px 0 rgba(255,255,255,0.06);
-        transform: perspective(1200px) rotateY(-2deg) rotateX(1deg) translateZ(10px);
-        border: 1px solid rgba(188,140,255,0.25);
-        transition: transform 0.4s ease, box-shadow 0.4s ease;
-      " />
-    </picture>
-  </a>
-</div>
-
 ---
 
 > *The poor man doesn't need a VPN provider. He needs SSH, a wallet, and a machine that listens.*
