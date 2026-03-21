@@ -11,7 +11,7 @@
 // Private key NEVER touches this application.
 
 import { injectStyles } from './style';
-import { hasMetaMask, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
+import { hasMetaMask, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
 injectStyles();
 
@@ -163,7 +163,17 @@ export function createApp(): HTMLElement {
   sshHint.style.cssText = 'font-size:11px;color:#484f58;margin-top:6px;font-family:monospace';
   payloadSection.append(payloadArea, copyBtn, sshHint);
 
-  sidebar.append(walletSection, connSection, payloadSection);
+  // ── Diagnostics Section ──
+  const diagSection = mk('div', 'pmvpn-section');
+  diagSection.innerHTML = '<h3>Diagnostics</h3>';
+  const diagResults = mk('div', 'pmvpn-diag-results');
+  const diagBtn = document.createElement('button');
+  diagBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
+  diagBtn.textContent = 'Run Diagnostics';
+  diagBtn.addEventListener('click', runDiagnostics);
+  diagSection.append(diagBtn, diagResults);
+
+  sidebar.append(walletSection, connSection, payloadSection, diagSection);
 
   // ── Main: Terminal ──
   const placeholder = mk('div', 'pmvpn-placeholder', `
@@ -187,6 +197,131 @@ export function createApp(): HTMLElement {
 
   body.append(sidebar, main);
   root.append(header, body, logEl, statusBar);
+
+  // ── Diagnostics — real end-to-end tests ──
+  async function runDiagnostics() {
+    diagResults.innerHTML = '';
+    diagBtn.disabled = true;
+    diagBtn.textContent = 'Testing...';
+    log('diagnostics: starting', 'info');
+
+    const wallet = getAddress();
+    const authenticated = isConnected();
+
+    for (const conn of connections) {
+      const challengePort = parseInt(conn.port) + 3;
+      const baseUrl = `http://${conn.host}:${challengePort}`;
+
+      // Test 1: Server reachable
+      const t1 = addDiagRow(`${conn.name} — server`);
+      try {
+        const start = performance.now();
+        const res = await fetch(`${baseUrl}/status`, { signal: AbortSignal.timeout(5000) });
+        const ms = Math.round(performance.now() - start);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        t1.pass(`reachable ${ms}ms · v${data.version} · up ${fmtUp(data.uptime)} · ${data.wallets} wallet(s)`);
+      } catch (e: any) {
+        t1.fail(e.name === 'TimeoutError' ? 'timeout 5s' : e.message || 'unreachable');
+        continue; // skip remaining tests for this connection
+      }
+
+      // Test 2: Challenge nonce
+      const t2 = addDiagRow(`${conn.name} — challenge`);
+      if (!wallet) {
+        t2.warn('skipped — connect MetaMask first');
+        continue;
+      }
+      let nonce: string | null = null;
+      let message: string | null = null;
+      try {
+        const start = performance.now();
+        const res = await fetch(`${baseUrl}/challenge?address=${wallet}`, { signal: AbortSignal.timeout(5000) });
+        const ms = Math.round(performance.now() - start);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as any).error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        nonce = data.nonce;
+        message = data.message;
+        const ttl = data.expires - Math.floor(Date.now() / 1000);
+        t2.pass(`nonce received ${ms}ms · ${ttl}s TTL · ${nonce!.slice(0, 12)}...`);
+      } catch (e: any) {
+        t2.fail(e.message);
+        continue;
+      }
+
+      // Test 3: Signature (requires authenticated session)
+      const t3 = addDiagRow(`${conn.name} — signature`);
+      if (!authenticated || !nonce || !message) {
+        t3.warn('skipped — sign in first to test signatures');
+        continue;
+      }
+      try {
+        const start = performance.now();
+        const payload = await signAndBuildPayload(message, nonce);
+        const ms = Math.round(performance.now() - start);
+        const parsed = JSON.parse(payload);
+        t3.pass(`signed ${ms}ms · ${parsed.signature.slice(0, 18)}...`);
+
+        // Test 4: Payload valid (verify format)
+        const t4 = addDiagRow(`${conn.name} — payload`);
+        if (parsed.address && parsed.signature && parsed.nonce &&
+            parsed.address.startsWith('0x') && parsed.signature.startsWith('0x') &&
+            parsed.signature.length === 132 && parsed.nonce.length === 64) {
+          t4.pass(`valid · ${payload.length} bytes · ready for SSH`);
+        } else {
+          t4.fail('malformed payload');
+        }
+      } catch (e: any) {
+        t3.fail(e.message);
+      }
+    }
+
+    // MetaMask state
+    const tm = addDiagRow('MetaMask');
+    if (!hasMetaMask()) {
+      tm.fail('not installed');
+    } else {
+      const locked = await isMetaMaskLocked();
+      if (locked === true) tm.warn('locked — password required to connect');
+      else if (locked === false) tm.pass('unlocked · ready');
+      else tm.warn('state unknown');
+    }
+
+    // Session
+    const ts = addDiagRow('Session');
+    if (authenticated) {
+      ts.pass(`authenticated · ${wallet!.slice(0, 10)}...`);
+    } else {
+      ts.warn('not authenticated');
+    }
+
+    diagBtn.disabled = false;
+    diagBtn.textContent = 'Run Diagnostics';
+    log('diagnostics: complete', 'info');
+  }
+
+  function addDiagRow(label: string) {
+    const row = mk('div', 'pmvpn-diag-row');
+    const lbl = mk('span', 'pmvpn-diag-label', label);
+    const st = mk('span', 'pmvpn-diag-status', '...');
+    row.append(lbl, st);
+    diagResults.appendChild(row);
+    return {
+      pass: (msg: string) => { st.className = 'pmvpn-diag-status ok'; st.textContent = `✓ ${msg}`; log(`${label}: ${msg}`, 'success'); },
+      fail: (msg: string) => { st.className = 'pmvpn-diag-status fail'; st.textContent = `✗ ${msg}`; log(`${label}: ${msg}`, 'error'); },
+      warn: (msg: string) => { st.className = 'pmvpn-diag-status warn'; st.textContent = `— ${msg}`; log(`${label}: ${msg}`, 'info'); },
+    };
+  }
+
+  function fmtUp(s: number): string {
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
+    return `${Math.floor(s / 86400)}d${Math.floor((s % 86400) / 3600)}h`;
+  }
 
   // ── Render connections list ──
   function renderConnections() {

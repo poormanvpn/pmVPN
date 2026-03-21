@@ -356,6 +356,39 @@ textarea.pmvpn-input {
 .pmvpn-form-btns { display: flex; gap: 6px; }
 .pmvpn-form-btns .pmvpn-btn { flex: 1; }
 
+/* Diagnostics */
+.pmvpn-diag-results {
+  margin-top: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.pmvpn-diag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(59, 63, 92, 0.3);
+  gap: 8px;
+}
+
+.pmvpn-diag-label {
+  color: var(--card-foreground);
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.pmvpn-diag-status {
+  color: var(--muted-foreground);
+  text-align: right;
+  word-break: break-word;
+}
+
+.pmvpn-diag-status.ok { color: var(--success); }
+.pmvpn-diag-status.fail { color: var(--destructive); }
+.pmvpn-diag-status.warn { color: var(--warning); }
+
 /* ══════════════════════════════════════════════════════
    WALLET & HINTS
    ══════════════════════════════════════════════════════ */
