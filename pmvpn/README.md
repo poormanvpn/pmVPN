@@ -525,6 +525,7 @@ No Express. No ws. No dotenv. HTTP via Node built-in. Config via environment var
 
 | Document | What It Covers |
 |----------|----------------|
+| **[USAGE.md](docs/USAGE.md)** | Step-by-step usage guide. Server setup, client setup (PARSEC and CLI), local testing, remote machine connection, unprivileged mode, troubleshooting |
 | **[PROTOCOL.md](docs/PROTOCOL.md)** | PM tunnel wire format. Frame structure, command codes, channel lifecycle, flow control mechanics, security considerations. The complete specification for the binary multiplexing protocol |
 | **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Production deployment. Environment variables, wallets.json format, systemd service unit, Docker image, firewall rules, user creation, health monitoring, security checklist |
 | **[BOOTSTRAP.md](docs/BOOTSTRAP.md)** | Self-installation from existing access. User-level, admin-level, and zero-SSH methods. Automated key exchange, authorized_keys management, self-protection rules, reversibility procedures |
