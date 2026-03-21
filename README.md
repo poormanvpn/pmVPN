@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <img src="scalpbot.jpg" alt="Scalpbot" width="280" style="border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 60px rgba(210,153,34,0.12); transform: perspective(800px) rotateY(-1deg); border: 1px solid rgba(210,153,34,0.2); margin-top: 8px;" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="agenticplace.jpg" alt="AgenticPlace" width="280" style="border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 60px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1deg); border: 1px solid rgba(188,140,255,0.2); margin-top: 8px;" />
+  <a href="https://agenticplace.pythai.net">
+    <img src="agenticplace.jpg" alt="AgenticPlace" width="320" style="border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 60px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1deg); border: 1px solid rgba(188,140,255,0.2);" />
+  </a>
 </p>
 
 ---

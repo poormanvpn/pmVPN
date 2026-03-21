@@ -6,7 +6,9 @@
 </p>
 
 <p align="center">
-  <img src="../agenticplace.jpg" alt="AgenticPlace" width="340" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 80px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1.5deg) rotateX(-0.5deg); border: 1px solid rgba(188,140,255,0.2); margin-top: 8px;" />
+  <a href="https://agenticplace.pythai.net">
+    <img src="../agenticplace.jpg" alt="AgenticPlace" width="340" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 80px rgba(188,140,255,0.12); transform: perspective(800px) rotateY(1.5deg) rotateX(-0.5deg); border: 1px solid rgba(188,140,255,0.2); margin-top: 8px;" />
+  </a>
 </p>
 
 ---
