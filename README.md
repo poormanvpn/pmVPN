@@ -155,11 +155,14 @@ Thank [OpenBSD](https://www.openssh.com/).
 | | |
 |:--|:--|
 | **[pmVPN Technical README](pmvpn/README.md)** | Complete reference — architecture, auth flow, security model, configuration, file structure, dependency audit, cryptographic primitives |
-| **[PM Protocol Specification](pmvpn/docs/PROTOCOL.md)** | Binary wire format, command codes, channel lifecycle, flow control, security considerations |
-| **[Deployment Guide](pmvpn/docs/DEPLOYMENT.md)** | Production setup — systemd, Docker, firewall, wallet map, monitoring, security checklist |
-| **[Bootstrap Guide](pmvpn/docs/BOOTSTRAP.md)** | Self-installation from SSH/SFTP, zero-SSH containers, key exchange, authorized_keys handling |
-| **[Client Module](pmvpn/docs/CLIENT.md)** | PARSEC integration — UI, connection flow, Tauri commands, escalation levels |
-| **[Development Roadmap](pmvpn/docs/DEVELOPMENT.md)** | Eight phases, checklist status, dependency inventory, reference corpus |
+| **[Usage Guide](pmvpn/docs/USAGE.md)** | Step-by-step: server setup, client setup, local testing, remote connection |
+| **[PM Protocol Specification](pmvpn/docs/PROTOCOL.md)** | Binary wire format, command codes, channel lifecycle, flow control |
+| **[Deployment Guide](pmvpn/docs/DEPLOYMENT.md)** | Production: systemd, firewall, wallet map, monitoring |
+| **[Bootstrap Guide](pmvpn/docs/BOOTSTRAP.md)** | Self-installation, zero-SSH containers, key exchange |
+| **[Client Module](pmvpn/docs/CLIENT.md)** | Standalone + PARSEC, WebSocket, Terminal/Files/Share tabs |
+| **[Android Guide](pmvpn/docs/ANDROID.md)** | Build environment, APK build, phone install, browser fallback |
+| **[MetaMask Auth](pmvpn/docs/metamaskbestpractice.md)** | Disconnect standard practice, lock detection, mandatory signature |
+| **[Development Roadmap](pmvpn/docs/DEVELOPMENT.md)** | 9 of 10 phases complete, 41 commits |
 
 ---
 

@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-03-20 | Status: Alpha
+Updated: 2026-03-21 | Status: Alpha | 9 of 10 phases complete | 41 commits
 
 ---
 
@@ -133,17 +133,29 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [ ] Batch command execution across hosts (future)
 - [ ] Host group management (future)
 
-### Phase 9: Hardening & Mobile
+### Phase 9: Tauri Desktop + Android ✅
+
+- [x] Tauri 2 wraps existing client as native desktop app
+- [x] Desktop build: 13MB binary, 4.3MB .deb, 4.3MB .rpm
+- [x] Tauri config: 1200x800 window, CSP for ws/wss/http/https
+- [x] pmVPN logo icons at all required sizes (transparent PNG)
+- [x] Android scripts: android:init, android:dev, android:build
+- [x] ANDROID.md: 6-step fresh-machine build environment setup
+- [x] ANDROID.md: browser fallback for phones too old for APK
+- [x] ANDROID.md: GitHub Releases APK download instructions
+- [x] ANDROID.md: step-by-step install for first-time Android users
+- [x] Per-connection kill button (⏻) for individual session teardown
+- [x] App exit button (✕) — kills all, disconnects wallet, clean shutdown
+- [x] beforeunload handler — clean disconnect on browser close
+
+### Phase 10: Hardening (Future)
 
 - [ ] Security audit (input validation, path traversal, replay)
-- [ ] TLS on HTTP ports (self-signed or Let's Encrypt)
-- [ ] Chroot/jail for user sessions
+- [ ] TLS on HTTP/WS ports (self-signed or Let's Encrypt)
 - [ ] Rate limiting on challenge endpoint
 - [ ] Per-wallet connection limits
 - [ ] WalletConnect v2 for mobile wallet signing
-- [ ] Tauri mobile targets (Android/iOS)
-- [ ] Responsive mobile layout
-- [ ] Podman container image (no Docker)
+- [ ] Podman container image
 
 ---
 
@@ -157,6 +169,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Server deployment guide |
 | [BOOTSTRAP.md](BOOTSTRAP.md) | Self-installation and key exchange |
 | [CLIENT.md](CLIENT.md) | Parsec client module documentation |
+| [ANDROID.md](ANDROID.md) | Android build, install, and connection guide |
 | [metamaskbestpractice.md](metamaskbestpractice.md) | MetaMask auth standard practice |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 

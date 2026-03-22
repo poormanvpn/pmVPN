@@ -528,10 +528,12 @@ No Express. No dotenv. HTTP via Node built-in. Config via environment variables.
 |----------|----------------|
 | **[USAGE.md](docs/USAGE.md)** | Step-by-step usage guide. Server setup, client setup (PARSEC and CLI), local testing, remote machine connection, unprivileged mode, troubleshooting |
 | **[PROTOCOL.md](docs/PROTOCOL.md)** | PM tunnel wire format. Frame structure, command codes, channel lifecycle, flow control mechanics, security considerations. The complete specification for the binary multiplexing protocol |
-| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Production deployment. Environment variables, wallets.json format, systemd service unit, Docker image, firewall rules, user creation, health monitoring, security checklist |
-| **[BOOTSTRAP.md](docs/BOOTSTRAP.md)** | Self-installation from existing access. User-level, admin-level, and zero-SSH methods. Automated key exchange, authorized_keys management, self-protection rules, reversibility procedures |
-| **[CLIENT.md](docs/CLIENT.md)** | PARSEC wallet module. UI layout, connection lifecycle, bootstrap from client, escalation levels, containerized environments, Tauri commands and events reference |
-| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap. Eight phases with checklist status. Phases 1–3 complete (server, tunnel, client). Dependency audit. Reference corpus |
+| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Production deployment. Environment variables, wallets.json format, systemd service unit, firewall rules, user creation, health monitoring, security checklist |
+| **[BOOTSTRAP.md](docs/BOOTSTRAP.md)** | Self-installation from existing access. User-level, admin-level, and zero-SSH methods. Key exchange, authorized_keys management, self-protection, reversibility |
+| **[CLIENT.md](docs/CLIENT.md)** | Standalone client + PARSEC module. UI layout, WebSocket connection, tabs (Terminal/Files/Share), Tauri commands, MetaMask auth flow |
+| **[ANDROID.md](docs/ANDROID.md)** | Android build environment setup (6 steps), APK build, install on phone (USB/WiFi/GitHub Releases), browser fallback for old phones |
+| **[metamaskbestpractice.md](docs/metamaskbestpractice.md)** | MetaMask disconnect standard practice. wallet_revokePermissions, lock state detection, mandatory signature |
+| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap. 9 of 10 phases complete. 41 commits. Dependency audit. Reference corpus |
 
 ---
 
