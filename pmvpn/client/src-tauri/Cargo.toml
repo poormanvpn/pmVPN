@@ -1,0 +1,22 @@
+[package]
+name = "pmvpn"
+version = "0.1.0"
+description = "pmVPN — Wallet-Authenticated Remote Access"
+authors = ["cypherpunk2048"]
+license = "GPL-3.0"
+repository = "https://github.com/poormanvpn/pmVPN"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "pmvpn_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
