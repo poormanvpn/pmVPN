@@ -84,69 +84,187 @@ An 11-year-old phone is likely running Android 4-5 (2013-2014 era). Tauri 2 requ
 
 This works on any Android version with Chrome.
 
-## Prerequisites
+## Build Environment Setup (Fresh Machine)
 
-On your build machine (this laptop):
+Everything you need to build the Android APK from scratch. This takes about 15 minutes and ~5GB of disk space.
+
+### Step 1: System dependencies
 
 ```bash
-# Java 17+ (Android build tools require 17)
-sudo apt install openjdk-17-jdk
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  curl \
+  wget \
+  unzip \
+  git \
+  pkg-config \
+  libssl-dev \
+  libgtk-3-dev \
+  libwebkit2gtk-4.1-dev \
+  libappindicator3-dev \
+  librsvg2-dev \
+  patchelf \
+  openjdk-17-jdk
 
-# Android SDK
-# Option A: Android Studio (installs SDK automatically)
-# Option B: Command-line tools only
-mkdir -p ~/Android/Sdk
-cd ~/Android/Sdk
-wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-unzip commandlinetools-linux-*.zip
-mv cmdline-tools latest
-mkdir cmdline-tools
-mv latest cmdline-tools/
-
-# Set environment
-export ANDROID_HOME=~/Android/Sdk
-export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-
-# Accept licenses and install required components
-sdkmanager --licenses
-sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973"
-
-# Rust Android targets
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
+# Verify Java
+java --version
+# Should show: openjdk 17.x.x
 ```
 
-## Initialize Android
+### Step 2: Node.js + pnpm
+
+```bash
+# Install Node.js 20 via nvm (if not already installed)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
+source ~/.bashrc
+nvm install 20
+
+# Install pnpm
+npm install -g pnpm
+
+# Verify
+node --version   # v20.x.x
+pnpm --version   # 10.x.x
+```
+
+### Step 3: Rust + Android targets
+
+```bash
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Add Android cross-compilation targets
+rustup target add \
+  aarch64-linux-android \
+  armv7-linux-androideabi \
+  x86_64-linux-android \
+  i686-linux-android
+
+# Verify
+rustc --version   # 1.77+
+cargo --version
+```
+
+### Step 4: Android SDK + NDK (command-line only — no Android Studio needed)
+
+```bash
+# Create SDK directory
+mkdir -p ~/Android/Sdk
+cd ~/Android/Sdk
+
+# Download command-line tools
+wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+unzip commandlinetools-linux-*.zip
+
+# Fix the directory structure (Google's zip has a quirk)
+mkdir -p cmdline-tools
+mv cmdline-tools cmdline-tools/latest 2>/dev/null || mv latest cmdline-tools/latest 2>/dev/null
+
+# Set environment variables — add these to ~/.bashrc
+echo 'export ANDROID_HOME=~/Android/Sdk' >> ~/.bashrc
+echo 'export NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+source ~/.bashrc
+
+# Accept all licenses (press 'y' for each)
+sdkmanager --licenses
+
+# Install required SDK components
+sdkmanager \
+  "platforms;android-34" \
+  "build-tools;34.0.0" \
+  "ndk;27.0.12077973" \
+  "platform-tools"
+
+# Verify
+sdkmanager --list | head -5
+adb --version
+```
+
+### Step 5: Clone and install pmVPN
+
+```bash
+git clone https://github.com/poormanvpn/pmVPN.git
+cd pmVPN/pmvpn/client
+pnpm install
+```
+
+### Step 6: Verify everything works
+
+```bash
+# Check all tools
+echo "Node: $(node --version)"
+echo "pnpm: $(pnpm --version)"
+echo "Rust: $(rustc --version)"
+echo "Cargo: $(cargo --version)"
+echo "Java: $(java --version 2>&1 | head -1)"
+echo "Android SDK: $ANDROID_HOME"
+echo "NDK: $(ls $ANDROID_HOME/ndk 2>/dev/null)"
+echo "adb: $(adb --version 2>/dev/null | head -1)"
+rustup target list --installed | grep android
+```
+
+You should see Node 20+, Rust 1.77+, Java 17+, Android SDK path, NDK version, and 4 Android Rust targets.
+
+## Build the APK
+
+### Step 1: Initialize Android project
 
 ```bash
 cd pmVPN/pmvpn/client
 
-# Initialize Android project (creates src-tauri/gen/android/)
+# This creates src-tauri/gen/android/ with the Gradle project
 pnpm run android:init
 ```
 
-## Build APK
-
-### Debug (for testing)
+### Step 2: Build debug APK (for testing)
 
 ```bash
 pnpm run android:build -- --debug
 ```
 
-The APK will be at:
-```
-src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+This takes 3-5 minutes on the first run (downloads Gradle, compiles Rust for ARM).
+
+### Step 3: Find the APK
+
+```bash
+ls -lh src-tauri/gen/android/app/build/outputs/apk/universal/debug/
+# → app-universal-debug.apk (~8MB)
 ```
 
-### Release (for distribution)
+### Step 4: Upload to GitHub Releases (so you can download on your phone)
+
+```bash
+# Create a release with the APK + desktop builds
+gh release create v0.1.0 \
+  "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk#pmVPN Android APK" \
+  "src-tauri/target/release/bundle/deb/pmVPN_0.1.0_amd64.deb#pmVPN Linux .deb" \
+  --repo poormanvpn/pmVPN \
+  --title "pmVPN v0.1.0" \
+  --notes "Wallet-authenticated remote access. Eight ports. One wallet.
+
+- **Android APK**: download and install on your phone
+- **Linux .deb**: install with dpkg -i
+
+Connect MetaMask → sign → live terminal + file browser + P2P sharing."
+```
+
+After this, the APK is downloadable at:
+
+**https://github.com/poormanvpn/pmVPN/releases**
+
+Open that URL on your phone in Chrome, tap the APK, install it.
+
+### Build release APK (for distribution)
 
 ```bash
 pnpm run android:build
 ```
 
-The APK will be at:
-```
-src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
-```
+Output at: `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
 
 ## Install on Your Android Phone
 
