@@ -4,6 +4,56 @@
 
 ---
 
+## Quickest Way: Browser (No Install)
+
+You don't need an APK. Your phone's browser works right now:
+
+1. On your laptop, start both services:
+
+```bash
+# Terminal 1: server
+cd pmVPN/pmvpn/server
+WALLET_USER_MAP="0xYourAddr:yourusername" pnpm run dev
+
+# Terminal 2: client
+cd pmVPN/pmvpn/client
+pnpm run dev
+```
+
+2. Find your laptop's WiFi IP:
+
+```bash
+ip addr show | grep "inet " | grep -v 127.0.0.1
+# e.g. 192.168.1.50
+```
+
+3. On your phone, open Chrome and go to:
+
+```
+http://192.168.1.50:1420/
+```
+
+4. Full pmVPN UI works — Connect MetaMask, terminal, files, share. No install needed. Works on any Android version.
+
+---
+
+## Download APK from GitHub Releases
+
+When an APK build is available, it will be at:
+
+**https://github.com/poormanvpn/pmVPN/releases**
+
+1. Open that URL on your phone in Chrome
+2. Find the latest release
+3. Tap **app-universal-debug.apk** to download
+4. Open the downloaded file
+5. If prompted about "unknown sources" — tap Settings → Allow → go back → Install
+6. Open pmVPN from your app drawer
+
+If no release is listed yet, the APK hasn't been built. Use the browser method above.
+
+---
+
 ## What Is an APK
 
 An APK is an Android app file. It's like a .deb for your phone. You build it on your laptop, transfer it to your phone, and install it. No Google Play Store needed. Your phone runs the app directly.
