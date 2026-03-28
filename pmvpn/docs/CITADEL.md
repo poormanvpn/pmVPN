@@ -171,6 +171,8 @@ Each returning participant:
 
 The experience: the room was down for some time, now it's back. Like a website recovering from an outage — the URL (roomId) hasn't changed, only the server behind it.
 
+**Priority resurrection (optional):** Creators can include a tip payment during resurrection for faster indexing, metadata verification, and endpoint caching. The tip is split 10% to the protocol wallet and 90% to the operator (see [Platform Economics](#platform-economics)). Standard resurrection is always free — sovereignty means room recovery is a right, not a privilege.
+
 ### Why This Creates Immutable Global Communication
 
 Traditional platforms have a kill switch. A company can shut down a Discord server, delete a Telegram group, ban a Slack workspace. The room's existence depends on the platform's continued willingness to host it.
@@ -370,138 +372,18 @@ On [Algorand](https://algorand.co/), the Citadel registry is an [ARC-4](https://
 
 - Each Citadel is a box keyed by `roomId` (32 bytes)
 - Box value contains ABI-encoded registry fields
-- Global state: `total_rooms`, `creation_fee`, `fee_recipient`
+- Global state: `total_rooms`, `creation_fee`, `protocol_wallet`, `operator_wallet`, `protocol_bps`
 - Deployment via [vibekit-mcp](https://github.com/algorandfoundation/vibekit) `app_deploy`
 - Room queries via `read_box` and `indexer_search_transactions`
 - Token gate verification via `get_account_info` (checks ASA holdings)
 
-**Contract interface (Algorand TypeScript / PuyaTs):**
-
-```typescript
-class CitadelRegistry extends Contract {
-  // Global state
-  totalRooms = GlobalState<uint64>({ initialValue: 0 });
-  creationFee = GlobalState<uint64>({ initialValue: 1_000_000 }); // 1 ALGO in microAlgo
-  feeRecipient = GlobalState<Address>();
-
-  // Box storage: roomId → packed CitadelRecord
-  rooms = BoxMap<bytes32, CitadelRecordPacked>();
-
-  @abimethod()
-  createCitadel(
-    gateType: uint8,
-    gateAssetId: uint64,
-    gateThreshold: uint64,
-    metadataURI: string,
-    transportHint: string,
-  ): bytes32 {
-    // Verify payment covers creation fee
-    // Generate roomId from sender + timestamp + nonce
-    // Store record in box
-    // Emit CitadelCreated log
-    // Transfer fee to feeRecipient
-    // Return roomId
-  }
-
-  @abimethod()
-  updateTransportHint(roomId: bytes32, newHint: string): void {
-    // Only creator can update
-    // Emit CitadelUpdated log
-  }
-
-  @abimethod()
-  updateMetadataURI(roomId: bytes32, newURI: string): void {
-    // Only creator can update
-    // Emit CitadelUpdated log
-  }
-
-  @abimethod()
-  deactivate(roomId: bytes32): void {
-    // Only creator can deactivate
-    // Set active = false
-    // Emit CitadelDeactivated log
-  }
-
-  @abimethod({ readonly: true })
-  lookupCitadel(roomId: bytes32): CitadelRecordPacked {
-    // Read from box storage
-  }
-}
-```
+Contract interface is in the [Platform Economics](#platform-economics) section (includes fee-splitting logic).
 
 ### EVM Implementation
 
-On EVM chains ([Ethereum](https://ethereum.org/), [Base](https://base.org/), [Polygon](https://polygon.technology/), [Arbitrum](https://arbitrum.io/)), the registry is a minimal Solidity contract:
+On EVM chains ([Ethereum](https://ethereum.org/), [Base](https://base.org/), [Polygon](https://polygon.technology/), [Arbitrum](https://arbitrum.io/)), the registry is a Solidity contract with on-chain fee splitting between the blocktalk protocol wallet and the node operator.
 
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-contract CitadelRegistry {
-    struct CitadelRecord {
-        address creator;
-        uint8   gateType;       // 0=allowlist, 1=ERC721, 2=ERC1155, 3=ERC20, 4=ASA
-        address gateAsset;      // ERC token contract address
-        uint256 gateThreshold;  // Minimum balance (1 for NFT, N for fungible)
-        string  metadataURI;    // IPFS/Arweave URI
-        string  transportHint;  // Last-known endpoint
-        uint64  createdAt;
-        bool    active;
-    }
-
-    mapping(bytes32 => CitadelRecord) public citadels;
-    uint256 public creationFee;
-    address public feeRecipient;
-    uint256 public totalRooms;
-
-    event CitadelCreated(bytes32 indexed roomId, address indexed creator, address gateAsset);
-    event CitadelUpdated(bytes32 indexed roomId, string field);
-    event CitadelResurrected(bytes32 indexed roomId, string newTransportHint);
-    event CitadelDeactivated(bytes32 indexed roomId);
-
-    function createCitadel(
-        uint8   gateType,
-        address gateAsset,
-        uint256 gateThreshold,
-        string  calldata metadataURI,
-        string  calldata transportHint
-    ) external payable returns (bytes32 roomId) {
-        require(msg.value >= creationFee, "Insufficient fee");
-        roomId = keccak256(abi.encode(msg.sender, block.timestamp, totalRooms));
-        citadels[roomId] = CitadelRecord({
-            creator: msg.sender,
-            gateType: gateType,
-            gateAsset: gateAsset,
-            gateThreshold: gateThreshold,
-            metadataURI: metadataURI,
-            transportHint: transportHint,
-            createdAt: uint64(block.timestamp),
-            active: true
-        });
-        totalRooms++;
-        payable(feeRecipient).transfer(msg.value);
-        emit CitadelCreated(roomId, msg.sender, gateAsset);
-    }
-
-    function updateTransportHint(bytes32 roomId, string calldata hint) external {
-        require(citadels[roomId].creator == msg.sender, "Not creator");
-        citadels[roomId].transportHint = hint;
-        emit CitadelUpdated(roomId, "transportHint");
-    }
-
-    function updateMetadataURI(bytes32 roomId, string calldata uri) external {
-        require(citadels[roomId].creator == msg.sender, "Not creator");
-        citadels[roomId].metadataURI = uri;
-        emit CitadelUpdated(roomId, "metadataURI");
-    }
-
-    function deactivate(bytes32 roomId) external {
-        require(citadels[roomId].creator == msg.sender, "Not creator");
-        citadels[roomId].active = false;
-        emit CitadelDeactivated(roomId);
-    }
-}
-```
+Contract interface is in the [Platform Economics](#platform-economics) section (includes fee-splitting logic).
 
 Discovery uses [Blockscout](https://www.blockscout.com/) MCP `get_transactions_by_address` filtered by `CitadelCreated` event topics, or `direct_api_call` for log queries.
 
@@ -601,15 +483,17 @@ This works because gate verification happens at the node level, not on-chain. Th
   │                                                     │
   │  ALLOWLIST (0)         TOKEN-GATED (1-4)           │
   │  ─────────────         ────────────────            │
-  │  Fetch metadata        Query gate chain:           │
-  │  from metadataURI      ┌─────────────────────────┐ │
-  │  Verify creator sig    │ EVM:                    │ │
-  │  Check wallet in       │   Blockscout            │ │
-  │  allowedWallets list   │   get_tokens_by_address │ │
-  │         │              │   nft_tokens_by_address  │ │
-  │         ▼              │                          │ │
-  │  In list? ──→ Access   │ Algorand:               │ │
-  │  Not in list → Deny    │   vibekit               │ │
+  │  Fetch metadata        Query gate asset's chain   │
+  │  from metadataURI      (may differ from registry  │
+  │  Verify creator sig     chain — cross-chain OK)   │
+  │  Check wallet in       ┌─────────────────────────┐ │
+  │  allowedWallets list   │ EVM gate asset:         │ │
+  │         │              │   Blockscout            │ │
+  │         ▼              │   get_tokens_by_address │ │
+  │  In list? ──→ Access   │   nft_tokens_by_address │ │
+  │  Not in list → Deny    │                         │ │
+  │                        │ Algorand gate asset:    │ │
+  │                        │   vibekit               │ │
   │                        │   get_account_info      │ │
   │                        │   get_asset_info        │ │
   │                        └──────────┬──────────────┘ │
@@ -634,61 +518,23 @@ Token gates are checked at three points:
 
 ---
 
-## Fee and Payment Model
-
-### Design Principles
-
-- **Sybil resistance** — fees prevent spam room creation on the public registry
-- **Sovereignty** — fee recipient is configurable (DAO, burn address, operator, treasury)
-- **Native denomination** — fees in the chain's native asset (ETH, ALGO) — no token approvals needed
-- **Configurable** — fee amount set in the registry contract, updatable by contract admin
-
-### Fee Schedule
-
-| Action | Fee | Rationale |
-|--------|-----|-----------|
-| Create Citadel | Configurable (e.g., 0.01 ETH / 1 ALGO) | Sybil resistance, registry maintenance |
-| Update metadata URI | Gas/txn fee only | Metadata changes should be cheap |
-| Update transport hint | Gas/txn fee only | Resurrection should not be penalized |
-| Deactivate | Gas/txn fee only | Cleanup should be free |
-| Reactivate | 50% of creation fee | Mild deterrent against flip-flopping |
-
-### Payment Flow
-
-```
-  Creator wallet
-       │
-       ▼
-  ┌─────────────────────────────────────────────┐
-  │  EVM: Call createCitadel{ value: fee }(...)  │
-  │  ALGO: Group transaction:                    │
-  │    [0] Payment(fee → registry app address)   │
-  │    [1] AppCall(createCitadel, ...)            │
-  └──────────────────────┬──────────────────────┘
-                         │
-                         ▼
-  Contract:
-    1. Verify payment >= creationFee
-    2. Generate roomId = hash(sender, timestamp, nonce)
-    3. Store CitadelRecord in mapping/box
-    4. Emit CitadelCreated event
-    5. Transfer fee to feeRecipient
-                         │
-                         ▼
-  Return roomId + txHash to creator
-```
-
-### Free Citadels (Self-Registry)
-
-For environments where on-chain fees are undesirable (testnets, local development, air-gapped networks), a **self-registry** mode stores Citadel records locally on the node filesystem using the same `CitadelRecord` format. The room behaves identically but without on-chain permanence. This is a graceful degradation — not a separate code path.
-
----
-
 ## Platform Economics
 
 ### The Principle: Fees for Service, Not Access
 
 blocktalk charges fees for **on-chain services** — registration, storage, indexing, metadata pinning. It does not charge for **communication** — sending messages, joining rooms, or participating in conversations. You pay for the infrastructure that makes permanence possible, not for the right to speak.
+
+### Design Principles
+
+- **Sybil resistance** — fees prevent spam room creation on the public registry
+- **Sovereignty** — fee recipients are transparent and configurable; anyone can deploy their own registry with 0% protocol fee
+- **Native denomination** — fees in the chain's native asset (ETH, ALGO) — no token approvals needed
+- **Configurable** — fee amount and split ratios set at deployment, updatable by contract admin
+- **Atomic splitting** — fees split on-chain in a single transaction between protocol and operator
+
+### Free Citadels (Self-Registry)
+
+For environments where on-chain fees are undesirable (testnets, local development, air-gapped networks), a **self-registry** mode stores Citadel records locally on the node filesystem using the same `CitadelRecord` format. The room behaves identically but without on-chain permanence. This is a graceful degradation — not a separate code path.
 
 This distinction is what separates a platform fee from rent-seeking. The Citadel registry contract is MIT-licensed. Anyone can deploy their own registry with 0% protocol fee. The room format is open. If blocktalk's fees are too high, fork the contract and set your own. Sovereignty means the exit door is always open.
 
@@ -1060,54 +906,22 @@ interface DiscoveryFilter {
   Join room
 ```
 
+**Stale room handling:** Citadels that remain dormant indefinitely are not cleaned up — on-chain records are permanent by design. Client-side discovery can filter by `createdAfter` or hide rooms dormant beyond a configurable threshold (e.g., 90 days). The chain stores everything; the UI curates what you see.
+
 ---
 
 ## Room Resurrection
 
-The defining feature of a Citadel: it survives server death.
+The defining feature of a Citadel: it survives server death. The full six-step restoration flow, three-layer architecture, and immutability thread are documented in [How Permanence Works](#how-permanence-works) above.
 
-### Resurrection Protocol
+### Summary
 
-```
-  Original server dies (crash, shutdown, decommission)
-         │
-         ▼
-  Citadel record persists on-chain (immutable)
-  Metadata persists at metadataURI (IPFS/Arweave)
-  No single point of failure for the room's identity
-         │
-         ▼
-  New server operator wants to resurrect the Citadel
-         │
-         ▼
-  1. Read CitadelRecord from chain by roomId
-         │
-  2. Verify operator authorization:
-     └── Is operator the creator? (wallet signature check)
-     └── OR: Is operator in metadata allowedWallets as admin?
-         │
-  3. Fetch CitadelMetadata from metadataURI
-     └── Verify creator's signature over metadata JSON
-     └── Extract permissions, throttle, gate config
-         │
-  4. Create new blocktalk room with identical configuration
-     └── Same roomId, same permissions, same token gate
-     └── New WebSocket endpoint on new server
-         │
-  5. Update transportHint on-chain (points to new server)
-     └── EVM: call updateTransportHint(roomId, newEndpoint)
-     └── ALGO: app_call to updateTransportHint method
-     └── Emit CitadelResurrected event
-         │
-  6. Participants discover new endpoint via:
-     └── On-chain transportHint update (event listener or poll)
-     └── XMTP announcement (if dual-transport)
-     └── citadel-resurrect message type (gossip)
-     └── Out-of-band notification
-         │
-         ▼
-  Participants reconnect → re-verify token gate → resume
-```
+1. Citadel record persists on-chain after server death (immutable)
+2. Authorized wallet reads record + metadata from chain + IPFS
+3. New server rebuilds room with identical configuration
+4. Transport hint updated on-chain → participants rediscover and reconnect
+
+**Priority resurrection** (opt-in, see [Platform Economics](#platform-economics)): creators can include a tip for faster indexing, metadata verification, and endpoint caching. Standard resurrection is always free.
 
 ### What Survives vs What Is Lost
 
@@ -1130,7 +944,7 @@ For Citadels that need message survival:
 1. **XMTP transport** — messages survive inherently (XMTP network persists them)
 2. **Self-hosted + IPFS backup** — periodically export signed message log to IPFS, store CID in metadata
 3. **Self-hosted + XMTP mirror** — dual-write to both transports: self-hosted for low-latency, XMTP for persistence
-4. **Self-hosted + pmVPN SFTP** — back up room state to a different pmVPN server via SFTP (port +1)
+4. **Self-hosted + pmVPN SFTP** — back up room state to a different pmVPN server via SFTP (port +1); survives single-server failure
 
 ---
 
@@ -1154,12 +968,13 @@ On-chain data (registry record, metadata hash) is public. Room **content** is al
 |-----------|------------------------|
 | **Keys are identity** | Room creator = wallet that signed the creation tx. Token gate = cryptographic proof of asset ownership. No usernames, no emails, no KYC. |
 | **Verification replaces trust** | Token gate verified on-chain (balance query). Metadata verified by creator signature ([EIP-191](https://eips.ethereum.org/EIPS/eip-191)). Messages verified by wallet signature (existing [blocktalk](BLOCKTALK.md) pattern). |
-| **Sovereignty** | Creator controls the room via on-chain ownership. No platform can delete a Citadel — the record is immutable. Any server can resurrect it. The room outlives its infrastructure. |
+| **Sovereignty** | Creator controls the room via on-chain ownership. No platform can delete a Citadel — the record is immutable. Any server can resurrect it. The room outlives its infrastructure. Self-sovereignty escape hatch: deploy your own registry with 0% protocol fee. |
 | **Privacy** | On-chain: only roomId, creator, and gate config are public. Content is never on-chain. Metadata can use encrypted IPFS. Transport layer is end-to-end encrypted. |
 | **Permissionless** | Any wallet can create a Citadel by paying the fee. No approval process. No gatekeeping beyond the Sybil-resistance fee. |
 | **Minimal trust** | Chain verification replaces trust in a central operator. IPFS/Arweave for metadata replaces trust in a single server. [MLS](https://www.rfc-editor.org/rfc/rfc9420) math replaces trust in a messaging provider. |
 | **Consent** | Token gate is explicit: you chose to hold (or not hold) the asset. Joining is voluntary. Revalidation is transparent with notice. |
 | **Throttle as protection** | Same [throttle system](BLOCKTALK.md#throttle-settings) as existing room types. Protects all participants equally. |
+| **Fees for service** | Fees fund on-chain registration and infrastructure, not communication. Fee amounts, split ratios, and recipients are all on-chain and auditable. The contract is MIT-licensed — fork it and set your own economics. blocktalk earns its fee by being useful, not by being unavoidable. |
 
 ---
 
@@ -1305,7 +1120,9 @@ type MessageType =
 |----------------|-------------------|
 | citadel-announce | `blocktalk.org/citadel-announce:1.0` |
 | citadel-gate-check | `blocktalk.org/citadel-gate:1.0` |
+| citadel-gate-result | `blocktalk.org/citadel-gate:1.0` (response) |
 | citadel-resurrect | `blocktalk.org/citadel-resurrect:1.0` |
+| citadel-revalidate | `blocktalk.org/citadel-revalidate:1.0` |
 
 ---
 
