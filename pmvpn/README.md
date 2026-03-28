@@ -83,7 +83,9 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **Multi-host management.** Connect to multiple machines simultaneously. Switch between terminals. Monitor connection status across your infrastructure.
 
-**blocktalk.** Wallet-gated communication rooms for private messaging, file sharing, and AI collaboration. Any wallet can spin up a lightweight self-hosted node — no external infrastructure required. For production messaging, [XMTP](https://xmtp.org/) provides decentralized relay with [MLS](https://www.rfc-editor.org/rfc/rfc9420) end-to-end encryption. Room types: private (1:1), boardroom (team), dojo (human-AI multi-chat). Throttle controls and permission policies protect all participants.
+**blocktalk.** Wallet-gated communication rooms for private messaging, file sharing, and AI collaboration. Any wallet can spin up a lightweight self-hosted node — no external infrastructure required. For production messaging, [XMTP](https://xmtp.org/) provides decentralized relay with [MLS](https://www.rfc-editor.org/rfc/rfc9420) end-to-end encryption. Room types: private (1:1), boardroom (team), dojo (human-AI multi-chat), [citadel](docs/CITADEL.md) (blockchain-permanent, token-gated). Throttle controls and permission policies protect all participants.
+
+**Citadel.** Blockchain-registered permanent rooms that survive server death. Access earned by token ownership — [ERC-721](https://eips.ethereum.org/EIPS/eip-721)/[ERC-20](https://eips.ethereum.org/EIPS/eip-20) on EVM chains, [ASA](https://developer.algorand.org/docs/get-details/asa/) on [Algorand](https://algorand.co/). On-chain registry stores room identity and gate rules; content stays encrypted off-chain. Any wallet can resurrect a Citadel on a new server from its chain record. The foundation for distributed social networking without a platform.
 
 **Crypto-SSH.** Bidirectional key derivation between SSH keys and crypto wallets via [HKDF (RFC 5869)](https://tools.ietf.org/html/rfc5869). Your wallet derives SSH credentials for passwordless server access. Your SSH key derives crypto wallets for asset custody. Heritage: [csshd](https://github.com/cryptoAGI/csshd) — the world's first wallet-login SSH server.
 
@@ -578,10 +580,11 @@ Zero dependencies. Uses only [`node:crypto`](https://nodejs.org/api/crypto.html)
 | **[CLIENT.md](docs/CLIENT.md)** | Standalone client + PARSEC module — UI layout, WebSocket connection, tabs, Tauri commands, MetaMask auth flow |
 | **[ANDROID.md](docs/ANDROID.md)** | Android build + install — build environment (6 steps), APK build, install on phone, browser fallback |
 | **[CRYPTO-SSH.md](docs/CRYPTO-SSH.md)** | Bidirectional key derivation — wallet-to-SSH ([HKDF](https://tools.ietf.org/html/rfc5869), native secp256k1, agent bridge), SSH-to-wallet ([BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) HD wallet, service wallet, hardware tokens), [csshd](https://github.com/cryptoAGI/csshd) heritage |
-| **[BLOCKTALK.md](docs/BLOCKTALK.md)** | blocktalk v2 — wallet-gated communication rooms (private, boardroom, dojo), [XMTP](https://xmtp.org/) integration with [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420) encryption, self-hosted lightweight node, AI agent participation, throttle controls |
+| **[BLOCKTALK.md](docs/BLOCKTALK.md)** | blocktalk v2 — wallet-gated communication rooms (private, boardroom, dojo, citadel), [XMTP](https://xmtp.org/) integration with [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420) encryption, self-hosted lightweight node, AI agent participation, throttle controls |
+| **[CITADEL.md](docs/CITADEL.md)** | Citadel — blockchain-permanent token-gated rooms, on-chain registry ([Algorand](https://algorand.co/) + EVM), 5 gate types ([ERC-721](https://eips.ethereum.org/EIPS/eip-721)/[1155](https://eips.ethereum.org/EIPS/eip-1155)/[20](https://eips.ethereum.org/EIPS/eip-20)/[ASA](https://developer.algorand.org/docs/get-details/asa/)), room resurrection, distributed social networking |
 | **[REMOTE-CONTROL.md](docs/REMOTE-CONTROL.md)** | Claude Remote Control — AI-powered server administration from phone, tablet, or any browser |
 | **[metamaskbestpractice.md](docs/metamaskbestpractice.md)** | [MetaMask](https://metamask.io/) disconnect standard practice — wallet_revokePermissions, lock state detection, mandatory signature |
-| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap — 9.7 of 10 phases complete, dependency audit, reference corpus |
+| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap — 9.8 of 10 phases complete, dependency audit, reference corpus |
 
 ---
 

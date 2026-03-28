@@ -120,6 +120,14 @@ Open multi-chat room designed for human-AI and AI-AI interaction.
 
 ---
 
+### Citadel
+
+Blockchain-registered, token-gated, permanent room. Access determined by on-chain asset ownership. Survives server death — any authorized wallet can resurrect the room from its on-chain registry record. Designed for distributed social networking, DAO governance spaces, and token community communication.
+
+Full specification: **[CITADEL.md](CITADEL.md)**
+
+---
+
 ## Transport Modes
 
 ### Mode 1: Self-Hosted Node (Lightweight Event Server)
@@ -340,17 +348,17 @@ interface RoomPermissions {
 
 ### Default Policies by Room Type
 
-| Setting | Private Room | Boardroom | Dojo |
-|---------|:------------:|:---------:|:----:|
-| joinPolicy | invite-only | invite-only | open |
-| maxParticipants | 2 | 32 | 64 |
-| agentsAllowed | false | configurable | true |
-| filesEnabled | true | true | true |
-| maxFileSize | 10 MB | 50 MB | 25 MB |
-| maxRoomStorage | 100 MB | 500 MB | 250 MB |
-| membersCanInvite | false | false | true |
-| retention | ephemeral | persistent | session |
-| idleTimeout | 1 hour | 24 hours | 4 hours |
+| Setting | Private Room | Boardroom | Dojo | Citadel |
+|---------|:------------:|:---------:|:----:|:-------:|
+| joinPolicy | invite-only | invite-only | open | token-gated |
+| maxParticipants | 2 | 32 | 64 | 256 |
+| agentsAllowed | false | configurable | true | true |
+| filesEnabled | true | true | true | true |
+| maxFileSize | 10 MB | 50 MB | 25 MB | 50 MB |
+| maxRoomStorage | 100 MB | 500 MB | 250 MB | 1 GB |
+| membersCanInvite | false | false | true | false (token is invite) |
+| retention | ephemeral | persistent | session | persistent (on-chain) |
+| idleTimeout | 1 hour | 24 hours | 4 hours | never (permanent) |
 
 ---
 

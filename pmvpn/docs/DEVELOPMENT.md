@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-03-28 | Status: Alpha | 9.7 of 10 phases complete | 45 commits
+Updated: 2026-03-28 | Status: Alpha | 9.8 of 10 phases complete | 46 commits
 
 ---
 
@@ -192,6 +192,23 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Comprehensive BLOCKTALK.md documentation
 - [x] Cypherpunk2048 compliance analysis
 
+### Phase 9.8: Citadel — On-Chain Permanent Rooms ✅
+
+- [x] Citadel room type: blockchain-registered, token-gated, permanent
+- [x] On-chain registry design: Algorand (ARC-4 box storage) + EVM (Solidity mapping)
+- [x] ChainRegistry abstraction layer (AlgorandRegistry, EVMRegistry)
+- [x] Token-gating model: 5 gate types (allowlist, NFT collection, NFT specific, SFT, fungible)
+- [x] Cross-chain gates: room on one chain, gate asset on another
+- [x] Fee/payment model: creation fee in native asset, configurable recipient
+- [x] Room discovery: on-chain event queries + gossip announcements
+- [x] Room resurrection protocol: chain → metadata → rebuild → update transportHint
+- [x] Message preservation strategies: XMTP, IPFS backup, dual-write, SFTP mirror
+- [x] Distributed social networking: token-as-membership, federation via chain, identity portability
+- [x] Smart contract interfaces: Algorand PuyaTs + Solidity
+- [x] Security analysis: 10 threat vectors with mitigations
+- [x] Cypherpunk2048 compliance verification
+- [x] Comprehensive CITADEL.md documentation
+
 ### Phase 10: Hardening (Future)
 
 - [ ] Security audit (input validation, path traversal, replay)
@@ -218,6 +235,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | [REMOTE-CONTROL.md](REMOTE-CONTROL.md) | Claude Remote Control — handheld AI server administration |
 | [CRYPTO-SSH.md](CRYPTO-SSH.md) | Bidirectional key derivation between SSH and crypto wallets |
 | [BLOCKTALK.md](BLOCKTALK.md) | blocktalk v2 — wallet-gated rooms, XMTP integration, dojo multi-chat |
+| [CITADEL.md](CITADEL.md) | Citadel — blockchain-permanent, token-gated rooms, distributed social networking |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 
 ---
