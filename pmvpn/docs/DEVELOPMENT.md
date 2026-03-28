@@ -207,6 +207,12 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Smart contract interfaces: Algorand PuyaTs + Solidity
 - [x] Security analysis: 10 threat vectors with mitigations
 - [x] Cypherpunk2048 compliance verification
+- [x] Platform economics: fee-splitting (20% protocol / 80% operator), FeeSplit events
+- [x] blocktalk project wallet: published multisig, auditable, transparent
+- [x] Resurrection fee model: standard free, priority tip opt-in
+- [x] Operator revenue model: 80% of creation fees, premium service fees
+- [x] Self-sovereignty escape hatch: fork contract, set 0% protocol fee
+- [x] Updated smart contract interfaces with fee-splitting (Algorand + EVM)
 - [x] Comprehensive CITADEL.md documentation
 
 ### Phase 10: Hardening (Future)

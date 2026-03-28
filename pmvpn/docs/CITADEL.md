@@ -489,6 +489,287 @@ For environments where on-chain fees are undesirable (testnets, local developmen
 
 ---
 
+## Platform Economics
+
+### The Principle: Fees for Service, Not Access
+
+blocktalk charges fees for **on-chain services** — registration, storage, indexing, metadata pinning. It does not charge for **communication** — sending messages, joining rooms, or participating in conversations. You pay for the infrastructure that makes permanence possible, not for the right to speak.
+
+This distinction is what separates a platform fee from rent-seeking. The Citadel registry contract is MIT-licensed. Anyone can deploy their own registry with 0% protocol fee. The room format is open. If blocktalk's fees are too high, fork the contract and set your own. Sovereignty means the exit door is always open.
+
+### Fee-Split Architecture
+
+Every fee-bearing action splits the payment between three recipients, on-chain, in a single atomic transaction:
+
+```
+  Creator pays creation fee (e.g., 1 ALGO / 0.01 ETH)
+         │
+         ▼
+  ┌──────────────────────────────────────────────────┐
+  │            Registry Contract                      │
+  │                                                    │
+  │  Fee split (configured at deployment):            │
+  │                                                    │
+  │  ┌─────────────────────────────────────────────┐  │
+  │  │  Protocol fee (default: 20%)                │  │
+  │  │  → blocktalk project wallet                 │  │
+  │  │    (published multisig / DAO address)        │  │
+  │  │    Funds: development, audits, infra         │  │
+  │  └─────────────────────────────────────────────┘  │
+  │                                                    │
+  │  ┌─────────────────────────────────────────────┐  │
+  │  │  Operator fee (default: 80%)                │  │
+  │  │  → node operator wallet                     │  │
+  │  │    (set by deployer at initialization)      │  │
+  │  │    Reward: hosting, indexing, availability   │  │
+  │  └─────────────────────────────────────────────┘  │
+  │                                                    │
+  │  ┌─────────────────────────────────────────────┐  │
+  │  │  Burn (optional, default: 0%)               │  │
+  │  │  → zero address                             │  │
+  │  │    Deflationary mechanism (if desired)       │  │
+  │  └─────────────────────────────────────────────┘  │
+  │                                                    │
+  │  Protocol + Operator + Burn = 100%                │
+  └──────────────────────────────────────────────────┘
+```
+
+### Expanded Fee Schedule
+
+| Action | Fee | Protocol (20%) | Operator (80%) | Rationale |
+|--------|-----|:--------------:|:--------------:|-----------|
+| **Create Citadel** | Full creation fee | Yes | Yes | Primary revenue event — Sybil resistance + registry storage |
+| **Resurrect (standard)** | Free | — | — | Sovereignty: room recovery is a right, not a privilege |
+| **Resurrect (priority)** | Optional tip (creator sets amount) | 10% | 90% | Opt-in: faster indexing, metadata verification, endpoint caching |
+| **Reactivate** | 50% of creation fee | Yes | Yes | Deterrent against deactivate/reactivate cycling |
+| **IPFS pinning service** | Per-pin fee | 30% | 70% | Value-add: persistent metadata availability |
+| **Message history backup** | Per-backup fee | 30% | 70% | Value-add: IPFS archival of room history |
+| **Update metadata URI** | Gas/txn fee only | — | — | Should be cheap — content changes, not registration |
+| **Update transport hint** | Gas/txn fee only | — | — | Resurrection pathway — must remain free |
+| **Deactivate** | Gas/txn fee only | — | — | Cleanup should never be penalized |
+
+### The blocktalk Project Wallet
+
+The protocol fee recipient is a **published, auditable wallet address** set at contract deployment:
+
+**Recommended: Multisig or DAO**
+
+A multisig wallet (e.g., [Safe](https://safe.global/) on EVM, multisig on Algorand) controlled by the blocktalk project maintainers. The address is:
+
+- **Published** — in the contract source, in this documentation, in the README
+- **Auditable** — anyone can query the balance and transaction history on-chain
+- **Non-custodial** — requires multiple signatures for withdrawals (e.g., 2-of-3)
+- **Transparent** — all incoming fees visible via [Blockscout](https://www.blockscout.com/) or [Algorand indexer](https://developer.algorand.org/docs/get-details/indexer/)
+
+**What the protocol wallet funds:**
+
+| Category | Purpose |
+|----------|---------|
+| Development | Ongoing blocktalk/pmVPN/crypto-ssh development |
+| Security audits | Third-party contract and protocol audits |
+| Infrastructure | IPFS pinning, indexer nodes, testnet faucets |
+| Documentation | Technical writing, tutorials, reference implementations |
+| Grants | Community contributions, integrations, tooling |
+
+**Alternative: Deterministic derivation**
+
+For single-operator deployments, the protocol wallet can be derived from a project-level Ed25519 key using the [crypto-ssh](CRYPTO-SSH.md) `deriveServiceWallet()` pattern:
+
+```typescript
+import { deriveServiceWallet } from '@pmvpn/crypto-ssh';
+
+// Project-level key (published, version-controlled)
+const projectWallet = deriveServiceWallet(projectKeyPEM);
+// Same key → same address across all deployments
+```
+
+This is simpler but less sovereign than a multisig — it relies on a single key rather than multi-party governance.
+
+### Node Operator Revenue Model
+
+Operators earn 80% of all fees generated on their registry deployment. This creates a sustainable incentive to host Citadel infrastructure:
+
+```
+  Operator deploys CitadelRegistry contract
+         │
+         ▼
+  Sets operatorWallet = their own address
+  Sets protocolWallet = blocktalk project address (published)
+  Sets protocolBps = 2000 (20% = 2000 basis points)
+         │
+         ▼
+  Users create Citadels → fees split automatically
+  Operator earns 80% of every creation
+         │
+         ▼
+  Operator revenue scales with usage:
+    10 Citadels/month × 1 ALGO fee = 8 ALGO/month to operator
+    100 Citadels/month × 1 ALGO fee = 80 ALGO/month to operator
+    Premium services (pinning, backup) add additional revenue
+```
+
+**Multiple operators, multiple registries:** Different operators can deploy their own registry contracts on the same chain. Each registry has its own fee settings. Users choose which registry to use. Competition keeps fees fair. The protocol fee (to blocktalk) is the constant.
+
+### Updated Smart Contract Interfaces
+
+**Algorand (PuyaTs) — with fee splitting:**
+
+```typescript
+class CitadelRegistry extends Contract {
+  // Global state
+  totalRooms = GlobalState<uint64>({ initialValue: 0 });
+  creationFee = GlobalState<uint64>({ initialValue: 1_000_000 });  // 1 ALGO
+  protocolWallet = GlobalState<Address>();     // blocktalk project wallet
+  operatorWallet = GlobalState<Address>();     // node operator wallet
+  protocolBps = GlobalState<uint64>({ initialValue: 2000 }); // 20% in basis points
+
+  @abimethod()
+  createCitadel(
+    gateType: uint8,
+    gateAssetId: uint64,
+    gateThreshold: uint64,
+    metadataURI: string,
+    transportHint: string,
+  ): bytes32 {
+    // 1. Verify payment >= creationFee
+    // 2. Calculate split:
+    //    protocolAmount = (payment * protocolBps) / 10000
+    //    operatorAmount = payment - protocolAmount
+    // 3. Inner transaction: pay protocolWallet protocolAmount
+    // 4. Inner transaction: pay operatorWallet operatorAmount
+    // 5. Generate roomId, store record, emit log
+    // 6. Return roomId
+  }
+
+  @abimethod()
+  reactivate(roomId: bytes32): void {
+    // 1. Verify room is deactivated
+    // 2. Verify payment >= creationFee / 2
+    // 3. Split payment same as creation
+    // 4. Set active = true
+    // 5. Emit CitadelReactivated log
+  }
+
+  @abimethod()
+  resurrectPriority(roomId: bytes32, newHint: string): void {
+    // 1. Verify caller is creator or admin
+    // 2. Optional: accept tip payment
+    // 3. If payment > 0: split (10% protocol, 90% operator)
+    // 4. Update transportHint
+    // 5. Emit CitadelResurrected log with priority flag
+  }
+}
+```
+
+**EVM (Solidity) — with fee splitting:**
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract CitadelRegistry {
+    // ... existing CitadelRecord struct ...
+
+    address public protocolWallet;    // blocktalk project wallet
+    address public operatorWallet;    // node operator wallet
+    uint256 public protocolBps;       // basis points (e.g., 2000 = 20%)
+    uint256 public creationFee;
+    uint256 public totalRooms;
+
+    event FeeSplit(
+        bytes32 indexed roomId,
+        uint256 protocolAmount,
+        uint256 operatorAmount,
+        string action
+    );
+
+    function createCitadel(
+        uint8 gateType,
+        address gateAsset,
+        uint256 gateThreshold,
+        string calldata metadataURI,
+        string calldata transportHint
+    ) external payable returns (bytes32 roomId) {
+        require(msg.value >= creationFee, "Insufficient fee");
+
+        // Fee split
+        uint256 protocolAmount = (msg.value * protocolBps) / 10000;
+        uint256 operatorAmount = msg.value - protocolAmount;
+
+        payable(protocolWallet).transfer(protocolAmount);
+        payable(operatorWallet).transfer(operatorAmount);
+
+        // Room creation
+        roomId = keccak256(abi.encode(msg.sender, block.timestamp, totalRooms));
+        citadels[roomId] = CitadelRecord({ /* ... */ });
+        totalRooms++;
+
+        emit CitadelCreated(roomId, msg.sender, gateAsset);
+        emit FeeSplit(roomId, protocolAmount, operatorAmount, "create");
+    }
+
+    function reactivate(bytes32 roomId) external payable {
+        require(citadels[roomId].creator == msg.sender, "Not creator");
+        require(!citadels[roomId].active, "Already active");
+        require(msg.value >= creationFee / 2, "Insufficient reactivation fee");
+
+        uint256 protocolAmount = (msg.value * protocolBps) / 10000;
+        uint256 operatorAmount = msg.value - protocolAmount;
+
+        payable(protocolWallet).transfer(protocolAmount);
+        payable(operatorWallet).transfer(operatorAmount);
+
+        citadels[roomId].active = true;
+        emit FeeSplit(roomId, protocolAmount, operatorAmount, "reactivate");
+    }
+
+    function resurrectPriority(bytes32 roomId, string calldata hint) external payable {
+        require(citadels[roomId].creator == msg.sender, "Not creator");
+        citadels[roomId].transportHint = hint;
+
+        if (msg.value > 0) {
+            // Priority tip: 10% protocol, 90% operator
+            uint256 protocolAmount = (msg.value * 1000) / 10000; // 10%
+            uint256 operatorAmount = msg.value - protocolAmount;
+            payable(protocolWallet).transfer(protocolAmount);
+            payable(operatorWallet).transfer(operatorAmount);
+            emit FeeSplit(roomId, protocolAmount, operatorAmount, "resurrect-priority");
+        }
+
+        emit CitadelResurrected(roomId, hint);
+    }
+}
+```
+
+### Cypherpunk2048 Fee Compliance
+
+| Principle | How the Fee Model Respects It |
+|-----------|-------------------------------|
+| **Sovereignty** | Fees are for on-chain registration, not communication. You never pay to speak. Self-registry mode is free. Deploy your own contract with 0% protocol fee at any time. |
+| **Permissionless** | Any wallet pays the fee, gets a Citadel. No approval. No KYC. No identity verification. The fee is the only requirement. |
+| **Transparency** | Every fee, split ratio, and recipient is on-chain. The `FeeSplit` event logs every payment. Anyone can audit. |
+| **No lock-in** | The contract is MIT-licensed. The room format is open. Fork the registry, set your own fees, operate your own economy. The exit door is always open. |
+| **Minimal trust** | Fee splitting is atomic and on-chain. No off-chain invoicing. No payment processor. No intermediary. |
+| **Consent** | All fees are visible before the transaction. The creator chooses to pay. No hidden charges. No recurring fees. |
+| **Operator sovereignty** | Each operator sets their own fee amount when deploying. Protocol percentage is a constant the operator agrees to at deployment time. |
+
+### The Self-Sovereignty Escape Hatch
+
+This is the most important part of the fee model: **you can always leave.**
+
+If you disagree with blocktalk's protocol fee:
+1. Deploy your own `CitadelRegistry` contract (MIT license, source is public)
+2. Set `protocolBps = 0` and `protocolWallet = address(0)`
+3. All fees go to your operator wallet
+4. Rooms created on your registry are fully functional Citadels
+5. They use the same format, same token gates, same resurrection protocol
+
+blocktalk earns its fee by providing value: maintained contracts, audited code, indexed discovery, IPFS pinning, documentation, ecosystem development. If that value isn't worth 20% of a nominal creation fee, the market will decide.
+
+This is the cypherpunk social contract: **earn your fee by being useful, not by being unavoidable.**
+
+---
+
 ## Room Discovery
 
 ### On-Chain Discovery (Primary)
