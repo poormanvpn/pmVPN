@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-03-28 | Status: Alpha | 9.6 of 10 phases complete | 43 commits
+Updated: 2026-03-28 | Status: Alpha | 9.7 of 10 phases complete | 45 commits
 
 ---
 
@@ -175,6 +175,23 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Comprehensive CRYPTO-SSH.md documentation
 - [x] Heritage documentation: csshd, cSSHwallet lineage
 
+### Phase 9.7: blocktalk v2 Design ✅
+
+- [x] Room architecture: private room, boardroom, dojo (multi-chat)
+- [x] Three transport modes: self-hosted node, XMTP network, direct (v1 compat)
+- [x] Self-hosted node: lightweight WebSocket event server on port +8
+- [x] XMTP integration: MLS encryption, agent SDK, remote attachments, content types
+- [x] Permission controls: owner/admin/member/viewer/agent roles
+- [x] Throttle settings: rate limiting, bandwidth caps, burst control, agent guards
+- [x] Sandboxed shared folders with per-room quotas and path traversal prevention
+- [x] AI agent participation: XMTP Agent SDK, local agents, Claude via Remote Control
+- [x] Dojo multi-chat: human-AI and AI-AI with loop guards and cooldowns
+- [x] Encryption: X25519 + ChaCha20-Poly1305 (self-hosted), MLS RFC 9420 (XMTP)
+- [x] Message type extensions: room-invite, reaction, reply, agent-action, agent-result
+- [x] XMTP content type mapping for cross-app interoperability
+- [x] Comprehensive BLOCKTALK.md documentation
+- [x] Cypherpunk2048 compliance analysis
+
 ### Phase 10: Hardening (Future)
 
 - [ ] Security audit (input validation, path traversal, replay)
@@ -200,6 +217,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | [metamaskbestpractice.md](metamaskbestpractice.md) | MetaMask auth standard practice |
 | [REMOTE-CONTROL.md](REMOTE-CONTROL.md) | Claude Remote Control — handheld AI server administration |
 | [CRYPTO-SSH.md](CRYPTO-SSH.md) | Bidirectional key derivation between SSH and crypto wallets |
+| [BLOCKTALK.md](BLOCKTALK.md) | blocktalk v2 — wallet-gated rooms, XMTP integration, dojo multi-chat |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 
 ---

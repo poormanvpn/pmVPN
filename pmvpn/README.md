@@ -83,6 +83,8 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **Multi-host management.** Connect to multiple machines simultaneously. Switch between terminals. Monitor connection status across your infrastructure.
 
+**blocktalk.** Wallet-gated communication rooms for private messaging, file sharing, and AI collaboration. Any wallet can spin up a lightweight self-hosted node — no external infrastructure required. For production messaging, [XMTP](https://xmtp.org/) provides decentralized relay with [MLS](https://www.rfc-editor.org/rfc/rfc9420) end-to-end encryption. Room types: private (1:1), boardroom (team), dojo (human-AI multi-chat). Throttle controls and permission policies protect all participants.
+
 **Crypto-SSH.** Bidirectional key derivation between SSH keys and crypto wallets via [HKDF (RFC 5869)](https://tools.ietf.org/html/rfc5869). Your wallet derives SSH credentials for passwordless server access. Your SSH key derives crypto wallets for asset custody. Heritage: [csshd](https://github.com/cryptoAGI/csshd) — the world's first wallet-login SSH server.
 
 **Claude Remote Control.** Drive your entire pmVPN infrastructure from your phone. [Claude Code](https://docs.anthropic.com/en/docs/claude-code) runs locally on your machine while you interact from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Describe intent in natural language — Claude reads files, runs commands, edits code, and manages servers. Your wallet keys never leave your device. `./remote-control.sh` to start.
@@ -576,9 +578,10 @@ Zero dependencies. Uses only [`node:crypto`](https://nodejs.org/api/crypto.html)
 | **[CLIENT.md](docs/CLIENT.md)** | Standalone client + PARSEC module — UI layout, WebSocket connection, tabs, Tauri commands, MetaMask auth flow |
 | **[ANDROID.md](docs/ANDROID.md)** | Android build + install — build environment (6 steps), APK build, install on phone, browser fallback |
 | **[CRYPTO-SSH.md](docs/CRYPTO-SSH.md)** | Bidirectional key derivation — wallet-to-SSH ([HKDF](https://tools.ietf.org/html/rfc5869), native secp256k1, agent bridge), SSH-to-wallet ([BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) HD wallet, service wallet, hardware tokens), [csshd](https://github.com/cryptoAGI/csshd) heritage |
+| **[BLOCKTALK.md](docs/BLOCKTALK.md)** | blocktalk v2 — wallet-gated communication rooms (private, boardroom, dojo), [XMTP](https://xmtp.org/) integration with [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420) encryption, self-hosted lightweight node, AI agent participation, throttle controls |
 | **[REMOTE-CONTROL.md](docs/REMOTE-CONTROL.md)** | Claude Remote Control — AI-powered server administration from phone, tablet, or any browser |
 | **[metamaskbestpractice.md](docs/metamaskbestpractice.md)** | [MetaMask](https://metamask.io/) disconnect standard practice — wallet_revokePermissions, lock state detection, mandatory signature |
-| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap — 9.6 of 10 phases complete, dependency audit, reference corpus |
+| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap — 9.7 of 10 phases complete, dependency audit, reference corpus |
 
 ---
 
