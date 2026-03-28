@@ -27,9 +27,10 @@ export function loadWalletMap(): WalletMap {
     if (colonIdx === -1) continue;
     const address = trimmed.slice(0, colonIdx).toLowerCase().trim();
     const user = trimmed.slice(colonIdx + 1).trim();
-    if (address && user) {
-      map.set(address, { user, role: 'user' });
-    }
+    if (!address || !user) continue;
+    // Validate Ethereum address format
+    if (!/^0x[a-f0-9]{40}$/.test(address)) continue;
+    map.set(address, { user, role: 'user' });
   }
 
   // 2. Load JSON file (overrides env entries)
@@ -41,8 +42,9 @@ export function loadWalletMap(): WalletMap {
       for (const [address, entry] of Object.entries(data)) {
         map.set(address.toLowerCase(), entry);
       }
-    } catch {
-      // Silently skip malformed file — logged by caller
+    } catch (err) {
+      // Log malformed wallets.json so misconfiguration is visible
+      console.error(`[pmvpn] failed to parse ${jsonPath}:`, err instanceof Error ? err.message : err);
     }
   }
 

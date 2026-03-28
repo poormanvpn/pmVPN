@@ -26,8 +26,13 @@ export function loadOrGenerateHostKey(): Buffer {
   mkdirSync(PMVPN_DIR, { recursive: true });
 
   // Generate Ed25519 key in OpenSSH format (ssh2 requires this)
-  execSync(`ssh-keygen -t ed25519 -f "${HOSTKEY_PATH}" -N "" -q`);
-  chmodSync(HOSTKEY_PATH, 0o600);
+  try {
+    execSync(`ssh-keygen -t ed25519 -f "${HOSTKEY_PATH}" -N "" -q`);
+    chmodSync(HOSTKEY_PATH, 0o600);
+  } catch (err) {
+    logger.fatal({ err }, 'failed to generate host key — is ssh-keygen installed?');
+    throw new Error('host key generation failed: ssh-keygen not available or permission denied');
+  }
 
   logger.info({ path: HOSTKEY_PATH }, 'Ed25519 host key generated and saved');
   return readFileSync(HOSTKEY_PATH);

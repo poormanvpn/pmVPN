@@ -85,8 +85,14 @@ export function teardownFirewall(listenPort: number): void {
 
 /**
  * Execute an iptables command.
+ * Arguments are validated to prevent command injection.
  */
 function ipt(args: string): void {
+  // Validate: only allow safe characters in iptables args
+  // (alphanumeric, spaces, dashes, dots, slashes, colons, equals)
+  if (!/^[\w\s\-\.\/\:\=]+$/.test(args)) {
+    throw new Error(`unsafe iptables arguments rejected: ${args}`);
+  }
   const cmd = `iptables ${args}`;
   logger.debug({ cmd }, 'iptables');
   execSync(cmd, { stdio: 'pipe' });

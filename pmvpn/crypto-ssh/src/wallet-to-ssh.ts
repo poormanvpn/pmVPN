@@ -162,17 +162,7 @@ export function deriveEd25519FromWallet(
   //   04 22                        — OCTET STRING (34 bytes) — privateKey
   //     04 20                      — OCTET STRING (32 bytes) — actual key bytes
   //       <32 bytes of seed>
-  const derPrefix = Buffer.from(
-    '302e020100300506032b657004220420',
-    'hex'
-  );
-  const privateDER = Buffer.concat([derPrefix, seed]);
-
-  // Import as Ed25519 private key
-  const { createPrivateKey, createPublicKey } = await import('crypto');
-  // Note: This is sync despite the dynamic import pattern above — using require pattern below
-
-  // Actually, let's use the crypto module already imported at top
+  // Generate Ed25519 keypair from the deterministic seed
   const { privateKey, publicKey } = generateKeyPairFromSeed(seed);
 
   // Format as OpenSSH public key
@@ -354,7 +344,10 @@ export function createSecp256k1SSHIdentity(
  *
  * This allows MetaMask and hardware wallets to act as SSH agents.
  */
-export function verifySecp256k1SSHSignature(
+// Note: secp256k1 SSH signature verification delegates to viem.verifyMessage()
+// in the pmVPN server (server/src/auth/verifier.ts). This function documents
+// the interface but is not exported — use viem directly.
+function verifySecp256k1SSHSignature(
   challenge: Buffer,
   signature: string,
   expectedAddress: string

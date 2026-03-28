@@ -245,10 +245,15 @@ export function deriveSecp256k1FromSSH(sshSeed: Buffer, context: string = 'eth-w
   const n = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
   let keyBigInt = BigInt('0x' + rawKey.toString('hex'));
   if (keyBigInt === 0n || keyBigInt >= n) {
-    // Extremely unlikely, but handle it: hash again
+    // Extremely unlikely (~2^-128), but handle it: hash again
     const rehash = createHash('sha256').update(rawKey).update(Buffer.from('retry')).digest();
-    keyBigInt = BigInt('0x' + rehash.toString('hex'));
     rehash.copy(rawKey);
+    keyBigInt = BigInt('0x' + rawKey.toString('hex'));
+    // If still invalid after rehash (astronomically unlikely), throw
+    if (keyBigInt === 0n || keyBigInt >= n) {
+      rawKey.fill(0);
+      throw new Error('failed to derive valid secp256k1 key after retry');
+    }
   }
 
   return rawKey;
@@ -264,7 +269,10 @@ export function deriveSecp256k1FromSSH(sshSeed: Buffer, context: string = 'eth-w
  * Note: requires the secp256k1 curve operations from viem or ethers.
  * Here we define the interface — actual implementation uses viem.
  */
-export function privateKeyToAddress(privateKey: Buffer): string {
+// Note: Ethereum address derivation requires secp256k1 point multiplication
+// and Keccak-256 hashing. Use viem's privateKeyToAddress() for production.
+// This function documents the algorithm but is not exported.
+function privateKeyToAddress(privateKey: Buffer): string {
   // In production, use:
   //   import { privateKeyToAddress } from 'viem/accounts';
   //   return privateKeyToAddress(`0x${privateKey.toString('hex')}`);

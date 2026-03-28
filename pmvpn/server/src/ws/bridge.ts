@@ -69,6 +69,13 @@ export function createWsBridge(walletMap: WalletMap) {
     }, 30000);
 
     ws.on('message', async (raw) => {
+      // Reject oversized messages to prevent DoS
+      const MAX_WS_MESSAGE = 20 * 1024 * 1024; // 20 MB (covers base64 file uploads)
+      if (raw.length > MAX_WS_MESSAGE) {
+        ws.send(JSON.stringify({ type: 'error', error: 'message too large' }));
+        return;
+      }
+
       let msg: any;
       try {
         msg = JSON.parse(raw.toString());

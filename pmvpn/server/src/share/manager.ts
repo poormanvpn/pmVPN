@@ -63,7 +63,9 @@ try {
   if (shares.size > 0) {
     logger.info({ count: shares.size }, 'loaded existing shares');
   }
-} catch {}
+} catch (err) {
+  logger.warn({ err }, 'failed to load existing shares');
+}
 
 /**
  * Create a new share. Returns the share metadata.
