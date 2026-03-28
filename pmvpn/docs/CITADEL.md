@@ -21,6 +21,201 @@ Citadels are the building block for distributed social networking on the [cypher
 
 ---
 
+## How Permanence Works
+
+### The Problem with Servers
+
+Every communication platform in history has had the same vulnerability: the server. When the server dies — through hardware failure, decommissioning, censorship, bankruptcy, or simply forgetting to pay the hosting bill — the conversations it held die with it. IRC channels, Slack workspaces, Discord servers, Telegram groups — all are one `rm -rf` away from oblivion. The identity of the room, its membership rules, its history, and its purpose exist only as bits on a machine someone else controls.
+
+This is not a theoretical concern. It is the default state of digital communication. Your conversations exist at the pleasure of an operator.
+
+### The Blockchain as Registry, Not Database
+
+A Citadel achieves permanence by separating **identity** from **infrastructure**.
+
+The room's identity — who created it, who can access it, what the rules are — lives on a blockchain. The blockchain is append-only and distributed across thousands of nodes. No single operator can delete a record. No server failure can erase the room's existence. The identity persists as long as the chain persists.
+
+The room's content — messages, files, conversation history — lives on the transport layer (self-hosted node, [XMTP](https://xmtp.org/) network, or direct). Content is ephemeral by nature and encrypted by design. The chain does not store what you said. It stores the fact that a room exists, who owns it, and who is allowed in.
+
+This separation means:
+
+```
+  ┌───────────────────────────────────────────────────────────────┐
+  │                     IDENTITY LAYER                            │
+  │                     (blockchain)                               │
+  │                                                               │
+  │  Immutable. Distributed. Survives anything.                   │
+  │                                                               │
+  │  • roomId: unique identifier (hash)                          │
+  │  • creator: wallet address that paid the creation fee         │
+  │  • gate: what token you must hold to enter                   │
+  │  • metadataURI: where to find the room's full configuration  │
+  │  • transportHint: where the room is currently hosted          │
+  │  • active: whether the room is alive                         │
+  │  • createdAt: when this room was born                        │
+  │                                                               │
+  │  This record exists for as long as the blockchain exists.     │
+  │  No server, no company, no government can delete it.          │
+  └───────────────────────────────────────────────────────────────┘
+                              │
+                              │ points to
+                              ▼
+  ┌───────────────────────────────────────────────────────────────┐
+  │                    METADATA LAYER                              │
+  │                    (IPFS / Arweave)                            │
+  │                                                               │
+  │  Content-addressed. Replicated. Verifiable.                   │
+  │                                                               │
+  │  • name, description, avatar                                 │
+  │  • full permission policy (roles, throttle, limits)          │
+  │  • encryption scheme, transport preference                   │
+  │  • tags for discoverability                                  │
+  │  • creator's wallet signature (proves authenticity)          │
+  │                                                               │
+  │  Stored at a content-addressed URI (IPFS CID / Arweave tx). │
+  │  The URI is on-chain. The content is off-chain but immutable │
+  │  (content-addressing means the hash IS the address — if the  │
+  │  content changes, the address changes, and the chain record  │
+  │  would no longer match).                                     │
+  └───────────────────────────────────────────────────────────────┘
+                              │
+                              │ configures
+                              ▼
+  ┌───────────────────────────────────────────────────────────────┐
+  │                   TRANSPORT LAYER                              │
+  │                   (self-hosted / XMTP / direct)               │
+  │                                                               │
+  │  Replaceable. Encrypted. Sovereign.                           │
+  │                                                               │
+  │  • WebSocket server on any machine (self-hosted)             │
+  │  • XMTP group conversation (decentralized relay)             │
+  │  • Direct signed messages (clipboard, QR, any channel)       │
+  │                                                               │
+  │  This is the part that can die. And that's fine.             │
+  │  The identity layer lets you rebuild it from scratch.         │
+  └───────────────────────────────────────────────────────────────┘
+```
+
+### The Thread of Immutability
+
+The chain provides an unbroken **thread** of events for every Citadel. Each event is a transaction, timestamped, signed, and irrevocable:
+
+```
+  Block 1000:  CitadelCreated(roomId=0xabc, creator=0xAlice, gate=NFT-X)
+                 │
+  Block 1042:  CitadelUpdated(roomId=0xabc, field="metadataURI", new="ipfs://Qm...")
+                 │
+  Block 5830:  [Server dies — no on-chain event, the chain doesn't know or care]
+                 │
+  Block 5901:  CitadelResurrected(roomId=0xabc, newHint="wss://new-server:2208")
+                 │
+  Block 8200:  CitadelUpdated(roomId=0xabc, field="metadataURI", new="ipfs://Qn...")
+                 │
+  Block 12000: [Second server dies — again, the chain doesn't care]
+                 │
+  Block 12050: CitadelResurrected(roomId=0xabc, newHint="wss://third-server:2208")
+                 │
+                 ▼
+              ... the room continues. Servers come and go.
+              The thread on-chain is unbroken.
+```
+
+This thread is the room's **provenance** — an auditable history of its existence. Anyone can trace back to the creation event to verify: who started this room? What were the original rules? When was it resurrected? How many servers has it survived?
+
+The thread cannot be forged (transactions require wallet signatures), cannot be deleted (blockchain immutability), and cannot be censored (distributed consensus). It is the immutable backbone of a room that exists in mutable infrastructure.
+
+### How Restoration Works
+
+When a server hosting a Citadel goes offline, the room enters a **dormant** state. It is not dead — it is sleeping. The identity layer still has every fact needed to rebuild it.
+
+**Step 1: Discovery of dormant Citadel**
+
+Anyone querying the registry sees the room. The `transportHint` points to the dead server. A liveness check fails. The UI shows the room as dormant (gray dot instead of green).
+
+**Step 2: Authorization check**
+
+Only the creator (or a wallet listed as admin in the metadata) can resurrect a Citadel. This prevents hijacking — a random wallet cannot claim ownership of someone else's room just because the server went down.
+
+Authorization is verified by wallet signature. The operator signs a resurrection request. The contract verifies the signature matches the creator address stored on-chain.
+
+**Step 3: Metadata recovery**
+
+The resurrector fetches the room configuration from the `metadataURI` (IPFS or Arweave). Because the URI is content-addressed, the content is guaranteed to be the same as when the creator published it. The creator's wallet signature over the metadata JSON provides a second verification layer — even if IPFS returned tampered content, the signature check would fail.
+
+The metadata contains everything needed to rebuild the room: permissions, roles, throttle settings, encryption scheme, token gate details, participant limits.
+
+**Step 4: Room rebuilding**
+
+A new blocktalk node creates a room with the **exact same configuration** from the recovered metadata:
+- Same `roomId` (from on-chain record)
+- Same token gate (from on-chain record)
+- Same permissions, throttle, encryption (from metadata)
+- New WebSocket endpoint (the new server's address)
+
+The room is now live again. It is the same room — same identity, same rules, same gate — on new infrastructure.
+
+**Step 5: Transport hint update**
+
+The resurrector submits an on-chain transaction updating the `transportHint` to the new server's endpoint. This transaction emits a `CitadelResurrected` event. Participants who are watching the chain (event listeners, periodic polling) discover the new endpoint automatically.
+
+For XMTP-transport Citadels, a `citadel-resurrect` message is sent to the XMTP group, which XMTP delivers even to participants who were offline during the migration.
+
+**Step 6: Participants reconnect**
+
+Each returning participant:
+1. Discovers the new endpoint (from chain event or XMTP message)
+2. Connects to the new server via WebSocket
+3. Authenticates with wallet signature
+4. Passes the token gate check (node queries the chain for their asset balance)
+5. Resumes participation in the room
+
+The experience: the room was down for some time, now it's back. Like a website recovering from an outage — the URL (roomId) hasn't changed, only the server behind it.
+
+### Why This Creates Immutable Global Communication
+
+Traditional platforms have a kill switch. A company can shut down a Discord server, delete a Telegram group, ban a Slack workspace. The room's existence depends on the platform's continued willingness to host it.
+
+A Citadel has no kill switch because there is no single entity that controls all three layers:
+
+| Layer | Who Controls It | Can They Kill the Room? |
+|-------|----------------|:----------------------:|
+| Identity (blockchain) | Distributed consensus (thousands of nodes) | No — immutable by design |
+| Metadata (IPFS/Arweave) | Content-addressed storage (replicated globally) | No — content hash is the address |
+| Transport (server) | Individual operator | Yes — but the room resurrects elsewhere |
+
+The only way to permanently destroy a Citadel is to:
+1. Destroy the blockchain it's registered on (requires 51% attack on the entire network), AND
+2. Delete all copies of the metadata from IPFS/Arweave (requires deleting it from every node globally), AND
+3. Prevent any authorized wallet from ever starting a new server (requires physical coercion of key holders)
+
+This is, for practical purposes, impossible. The room is immortal in the same way that a Bitcoin transaction is irreversible — not because no one *could* undo it, but because the cost of doing so exceeds the value of any individual room.
+
+### Message Permanence vs Room Permanence
+
+A Citadel guarantees **room permanence** — the room's identity, rules, and access policy are immutable. It does not automatically guarantee **message permanence** — the conversation history depends on the transport:
+
+| Transport | Messages Survive Resurrection? | How |
+|-----------|:------------------------------:|-----|
+| XMTP | **Yes** | XMTP network stores messages independently of any server |
+| Self-hosted + IPFS backup | **Yes** | Periodic export of signed message log to IPFS; CID stored in metadata |
+| Self-hosted + XMTP mirror | **Yes** | Dual-write: local for speed, XMTP for permanence |
+| Self-hosted + pmVPN SFTP backup | **Partially** | Backup to a second pmVPN server; survives one failure, not two |
+| Self-hosted (no backup) | **No** | Messages live only on the host; lost when server dies |
+
+For Citadels that require full immutable communication (governance records, legal discussions, research archives), the recommended configuration is **XMTP transport** or **self-hosted + IPFS backup**. For casual communication where room permanence matters but message history doesn't, self-hosted without backup is sufficient.
+
+### The Analogy: Building vs Blueprint
+
+Think of a Citadel like a building with an indestructible blueprint:
+
+- The **blueprint** (on-chain registry + IPFS metadata) contains every specification: floor plan, access control, fire code, capacity limits. It is filed in a vault that no one can destroy.
+- The **building** (self-hosted node or XMTP group) is the physical structure where people meet. It can burn down.
+- **Resurrection** is rebuilding the structure from the blueprint. Same blueprint, same building. Different bricks.
+
+Traditional platforms are buildings without blueprints. When the building burns, everything is lost. A Citadel separates the blueprint from the building, making the building replaceable while the identity persists forever.
+
+---
+
 ## Why Citadel
 
 The name comes from the cypherpunk tradition. A citadel is a fortress within a city — a permanent, defensible structure protected not by walls but by design. In the blocktalk context:
