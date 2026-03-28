@@ -805,6 +805,231 @@ const agent = await Agent.createFromEnv();
 
 ---
 
+## Modular Composition — blocktalk + pmVPN + crypto-ssh
+
+The three modules — **blocktalk**, **pmVPN**, and **crypto-ssh** — are designed as independent, composable building blocks. Each can consume the others as a dependency, and each can be embedded in external projects without pulling in the full pmVPN stack.
+
+### The Composition Model
+
+```
+  ┌───────────────────────────────────────────────────────────────┐
+  │                                                               │
+  │                    Any External Project                       │
+  │                                                               │
+  │   Can import any combination:                                 │
+  │                                                               │
+  │   ┌─────────────┐  ┌─────────────┐  ┌──────────────┐        │
+  │   │  blocktalk   │  │   pmVPN     │  │  crypto-ssh  │        │
+  │   │  messaging   │  │  SSH/SFTP   │  │  key derive  │        │
+  │   │  rooms       │  │  tunnel     │  │  wallet↔SSH  │        │
+  │   │  files       │  │  8 ports    │  │  HD wallet   │        │
+  │   └──────┬───────┘  └──────┬──────┘  └──────┬───────┘        │
+  │          │                 │                 │                │
+  │          └─────────────────┼─────────────────┘                │
+  │                            │                                  │
+  │                    Shared identity layer:                     │
+  │                    wallet signature (secp256k1)               │
+  │                    viem.verifyMessage()                       │
+  │                                                               │
+  └───────────────────────────────────────────────────────────────┘
+```
+
+All three modules share one identity primitive: **a secp256k1 wallet signature verified by [viem](https://viem.sh/)**. A wallet that authenticates to pmVPN is the same wallet that opens a blocktalk room, the same wallet that derives SSH keys via crypto-ssh. One identity. Three capabilities.
+
+### How Each Module Uses the Others
+
+#### blocktalk uses pmVPN
+
+| Capability | How blocktalk Consumes It |
+|-----------|--------------------------|
+| **SSH tunnel** | blocktalk self-hosted node can run behind a pmVPN tunnel — the room is accessible over the encrypted SSH channel, not raw internet |
+| **SFTP file transport** | Room file sharing can use pmVPN's SFTP port (+1) as a storage backend instead of local `/tmp/` — files persist on the remote server |
+| **WebSocket bridge** | blocktalk can piggyback on pmVPN's existing WS bridge (port +4) as an additional message channel within an authenticated session |
+| **Wallet auth** | blocktalk reuses pmVPN's challenge-nonce-verify flow — same server, same wallet map, same nonce store |
+| **Multi-host** | A dojo room can span multiple pmVPN hosts — participants connect to different servers but share the room via XMTP relay |
+| **Bootstrap** | blocktalk's self-hosted node can be deployed to a remote machine using pmVPN's bootstrap mechanism (Phase 5) |
+
+```typescript
+// Example: blocktalk room over pmVPN tunnel
+import { createRoom } from '@pmvpn/blocktalk';
+import { connectTunnel } from '@pmvpn/server/tunnel/client';
+
+// Open pmVPN tunnel to remote server
+const tunnel = await connectTunnel('server.example.com', 2200, walletAuth);
+
+// Start blocktalk room on the tunneled connection
+// Room is accessible through the SSH tunnel — encrypted twice
+const room = createRoom({
+  transport: 'self-hosted',
+  host: tunnel.localAddress,     // tunnel endpoint
+  port: tunnel.localPort,        // mapped through SSH
+  type: 'dojo',
+  name: 'Remote Dojo',
+});
+```
+
+#### pmVPN uses blocktalk
+
+| Capability | How pmVPN Consumes It |
+|-----------|----------------------|
+| **Share invites** | pmVPN's P2P file sharing (Phase 6) sends share invites as blocktalk messages — wallet-signed, verifiable, transport-agnostic |
+| **Session notifications** | pmVPN can send connection status, alerts, and admin notifications through blocktalk rooms |
+| **Collaborative terminal** | A dojo room can embed pmVPN terminal output — multiple participants watch the same session, discuss via chat |
+| **Remote Control coordination** | Claude Remote Control sessions can report progress into a blocktalk room, allowing phone-based monitoring |
+| **Multi-host orchestration** | Batch commands across pmVPN hosts can report results into a boardroom for coordinated ops |
+
+```typescript
+// Example: pmVPN share invite via blocktalk
+import { createMessage } from '@pmvpn/blocktalk';
+import { buildInviteMessage } from '@pmvpn/server/share/manager';
+
+// Create pmVPN file share
+const shareInvite = buildInviteMessage(shareId, host, port);
+
+// Send via blocktalk (any transport)
+const { message, signable } = createMessage(
+  myAddress,
+  recipientAddress,
+  JSON.stringify(shareInvite),
+  'share-invite'
+);
+// Sign and deliver through blocktalk room, XMTP, or clipboard
+```
+
+#### crypto-ssh uses blocktalk
+
+| Capability | How crypto-ssh Consumes It |
+|-----------|---------------------------|
+| **Key exchange** | Wallet-derived SSH public keys can be exchanged through blocktalk rooms — no manual `ssh-copy-id` needed |
+| **Service wallet coordination** | Server host key wallets (derived via crypto-ssh) can register themselves in a blocktalk boardroom for fleet management |
+| **Key rotation notifications** | When a server rotates its host key (and thus its derived wallet), it announces the new address in a blocktalk room |
+
+```typescript
+// Example: exchange SSH keys via blocktalk room
+import { deriveEd25519FromWallet } from '@pmvpn/crypto-ssh';
+import { createMessage } from '@pmvpn/blocktalk';
+
+// Derive SSH key from wallet
+const keyPair = deriveEd25519FromWallet(walletPrivKey, address, 'ssh-auth');
+
+// Send public key via blocktalk (key-exchange message type)
+const { message, signable } = createMessage(
+  address,
+  serverAdminAddress,
+  keyPair.publicKeySSH,        // authorized_keys line
+  'key-exchange'
+);
+// Recipient adds key to authorized_keys — wallet-authenticated key exchange
+```
+
+#### blocktalk uses crypto-ssh
+
+| Capability | How blocktalk Consumes It |
+|-----------|--------------------------|
+| **Agent identity** | AI agents in dojo rooms derive wallet identities from SSH keys using crypto-ssh — the server's host key becomes the agent's wallet |
+| **Room encryption keys** | Self-hosted node can derive room encryption keys from the host's SSH key via HKDF — deterministic, no separate key management |
+| **Hardware-backed rooms** | When the host's SSH key is on a YubiKey, the room encryption is hardware-backed via crypto-ssh's signature-based derivation |
+
+```typescript
+// Example: AI agent gets wallet identity from SSH key
+import { deriveWalletFromSSHKey } from '@pmvpn/crypto-ssh';
+import { readFileSync } from 'fs';
+
+// Server's host key becomes the agent's identity
+const hostKey = readFileSync(`${HOME}/.pmvpn/hostkey`, 'utf8');
+const agentWallet = deriveWalletFromSSHKey(hostKey, 'blocktalk-agent');
+
+// Agent joins dojo with this derived wallet address
+// Same host key → same agent identity (deterministic)
+```
+
+#### pmVPN uses crypto-ssh
+
+| Capability | How pmVPN Consumes It |
+|-----------|----------------------|
+| **Native SSH auth** | Wallet-derived Ed25519 keys in `authorized_keys` — eliminates the password-field hack |
+| **Service wallet** | Server host key derives an Ethereum address for on-chain identity, payments, and mesh discovery |
+| **Key deployment** | Bootstrap (Phase 5) deploys wallet-derived keys alongside existing auth — hybrid migration |
+
+```typescript
+// Example: pmVPN server derives service wallet on startup
+import { deriveServiceWallet } from '@pmvpn/crypto-ssh';
+import { loadOrGenerateHostKey } from './utils/hostkey';
+
+const hostKey = loadOrGenerateHostKey();
+const serviceWallet = deriveServiceWallet(hostKey);
+logger.info({ address: serviceWallet.fingerprint }, 'service wallet derived from host key');
+// Server can now sign on-chain transactions with its SSH-derived wallet
+```
+
+#### crypto-ssh uses pmVPN
+
+| Capability | How crypto-ssh Consumes It |
+|-----------|---------------------------|
+| **Key deployment** | Derived SSH public keys deployed to remote servers via pmVPN's SFTP port (+1) and bootstrap mechanism |
+| **Multi-host key distribution** | pmVPN's multi-host connections allow deploying derived keys to all servers in one operation |
+| **Secure channel for raw keys** | When derived keys need transport, pmVPN's encrypted SSH channel is the secure pipe |
+
+### Dependency Matrix
+
+Each module can be imported independently. No circular dependencies. The shared identity layer (wallet signature) is the only implicit coupling.
+
+```
+                 ┌────────────┐
+                 │ crypto-ssh │  Zero deps (node:crypto only)
+                 │            │  Pure functions, no I/O
+                 └──────┬─────┘
+                        │ can be imported by
+              ┌─────────┼─────────┐
+              ▼                   ▼
+       ┌────────────┐     ┌────────────┐
+       │  blocktalk  │     │   pmVPN    │
+       │             │ ←──→│            │  Bidirectional:
+       │  messaging  │     │  SSH/SFTP  │  blocktalk uses pmVPN tunnel
+       │  rooms      │     │  tunnel    │  pmVPN uses blocktalk messages
+       │  files      │     │  8 ports   │
+       └─────────────┘     └────────────┘
+```
+
+**Import patterns:**
+
+```typescript
+// Any project can import one, two, or all three:
+
+// Just crypto-ssh (key derivation only, zero deps)
+import { deriveEd25519FromWallet } from '@pmvpn/crypto-ssh';
+
+// Just blocktalk (messaging only, needs viem for signatures)
+import { createRoom, createMessage } from '@pmvpn/blocktalk';
+
+// Just pmVPN server (SSH/SFTP/tunnel, needs ssh2 + node-pty + viem + ws + pino)
+import { createSSHServer } from '@pmvpn/server';
+
+// blocktalk + crypto-ssh (messaging with SSH key exchange)
+import { createMessage } from '@pmvpn/blocktalk';
+import { deriveEd25519FromWallet } from '@pmvpn/crypto-ssh';
+
+// All three (full stack: SSH tunnel + messaging + key derivation)
+import { connectTunnel } from '@pmvpn/server/tunnel/client';
+import { createRoom } from '@pmvpn/blocktalk';
+import { deriveServiceWallet } from '@pmvpn/crypto-ssh';
+```
+
+### External Project Integration
+
+All three modules are designed as project-agnostic expansion tools:
+
+| Module | External Use Case | Example |
+|--------|-------------------|---------|
+| **crypto-ssh** | Any project needing wallet↔SSH key bridging | CI/CD pipeline derives deploy keys from wallet |
+| **blocktalk** | Any project needing wallet-gated messaging | DeFi app adds wallet-to-wallet chat |
+| **pmVPN** | Any project needing wallet-authenticated SSH | Hosting platform uses wallet login for SSH access |
+| **crypto-ssh + blocktalk** | Secure key exchange via messaging | Enterprise deploys SSH keys through authenticated chat |
+| **blocktalk + pmVPN** | Remote collaboration with file sharing | Distributed team shares files through tunnel-backed rooms |
+| **All three** | Full sovereign infrastructure | Self-hosted server with AI agents, encrypted chat, wallet identity |
+
+---
+
 ## References
 
 ### Protocol Standards
