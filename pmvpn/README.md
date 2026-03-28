@@ -68,6 +68,10 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **Multi-host management.** Connect to multiple machines simultaneously. Switch between terminals. Monitor connection status across your infrastructure.
 
+**Crypto-SSH.** Bidirectional key derivation between SSH keys and crypto wallets. Your wallet derives SSH credentials for passwordless server access. Your SSH key derives crypto wallets for asset custody. HKDF (RFC 5869) ensures one-way, deterministic derivation. Heritage: [csshd](https://github.com/cryptoAGI/csshd) — the world's first wallet-login SSH server.
+
+**Claude Remote Control.** Drive your entire pmVPN infrastructure from your phone. Claude Code runs locally on your machine while you interact from claude.ai/code or the Claude mobile app. Describe intent in natural language — Claude reads files, runs commands, edits code, and manages servers. Your wallet keys never leave your device. `./remote-control.sh` to start.
+
 **Self-installation.** pmVPN can bootstrap its own server onto any machine you can reach — even containers with no SSH server installed. The ssh2 library IS an SSH server. Upload, install, connect.
 
 ---
@@ -474,6 +478,14 @@ pmvpn/
 │   ├── .env.example
 │   └── Dockerfile
 │
+├── remote-control.sh                Claude Code Remote Control launcher
+│
+├── crypto-ssh/                      MIT License — Key derivation module
+│   ├── src/
+│   │   ├── index.ts                 Module exports
+│   │   ├── wallet-to-ssh.ts         Wallet → SSH: HKDF, native secp256k1, agent bridge
+│   │   └── ssh-to-wallet.ts         SSH → Wallet: HKDF, HD wallet, service wallet, hardware
+│
 ├── shared/                          MIT License
 │   └── src/
 │       ├── constants.ts            Port offsets, protocol version
@@ -533,7 +545,9 @@ No Express. No dotenv. HTTP via Node built-in. Config via environment variables.
 | **[CLIENT.md](docs/CLIENT.md)** | Standalone client + PARSEC module. UI layout, WebSocket connection, tabs (Terminal/Files/Share), Tauri commands, MetaMask auth flow |
 | **[ANDROID.md](docs/ANDROID.md)** | Android build environment setup (6 steps), APK build, install on phone (USB/WiFi/GitHub Releases), browser fallback for old phones |
 | **[metamaskbestpractice.md](docs/metamaskbestpractice.md)** | MetaMask disconnect standard practice. wallet_revokePermissions, lock state detection, mandatory signature |
-| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap. 9 of 10 phases complete. 41 commits. Dependency audit. Reference corpus |
+| **[CRYPTO-SSH.md](docs/CRYPTO-SSH.md)** | Crypto-SSH. Bidirectional key derivation between SSH and crypto wallets. Wallet→SSH (HKDF, native secp256k1, agent bridge), SSH→Wallet (HD wallet, service wallet, hardware tokens). csshd heritage |
+| **[REMOTE-CONTROL.md](docs/REMOTE-CONTROL.md)** | Claude Remote Control. AI-powered server administration from phone, tablet, or any browser. Setup, mobile workflows, security model, pmVPN integration |
+| **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap. 9.6 of 10 phases complete. 43 commits. Dependency audit. Reference corpus |
 
 ---
 
@@ -589,6 +603,8 @@ pmVPN stands on the shoulders of projects and people who built the infrastructur
 **[bankonOS](https://github.com/cypherpunk2048)** — The self-sovereign cryptocurrency banking operating system. The crypto-ssh authentication pattern that became pmVPN's wallet-based auth originated in bankon-greeter's EIP-191 verification flow.
 
 **[cSSHwallet](https://github.com/cypherpunk2048)** — Ten prototypes exploring wallet-authenticated SSH. CRYPTOSSH, crypto-ssh, csshd2 through csshd9, csshdQR — each iteration refined the idea that a wallet signature could replace an SSH key. pmVPN is the synthesis.
+
+**[csshd](https://github.com/cryptoAGI/csshd)** — The world's first wallet-login SSH server. Built with Python and paramiko, csshd proved that wallet signatures can replace SSH keys for authentication. The crypto-ssh module extends this lineage from proof of concept to bidirectional key derivation.
 
 **[RustCrypto](https://github.com/RustCrypto)** — The k256 and sha3 crates that handle EVM signing in Rust memory. No JavaScript ever touches the private key during signing.
 

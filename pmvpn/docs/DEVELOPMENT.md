@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-03-21 | Status: Alpha | 9 of 10 phases complete | 41 commits
+Updated: 2026-03-28 | Status: Alpha | 9.6 of 10 phases complete | 43 commits
 
 ---
 
@@ -148,6 +148,33 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] App exit button (✕) — kills all, disconnects wallet, clean shutdown
 - [x] beforeunload handler — clean disconnect on browser close
 
+### Phase 9.5: Claude Remote Control ✅
+
+- [x] `remote-control.sh` launcher script (server, interactive, attach modes)
+- [x] Worktree isolation for concurrent sessions (default spawn mode)
+- [x] Configurable capacity, session name, spawn mode via env vars
+- [x] Comprehensive documentation: REMOTE-CONTROL.md
+- [x] systemd companion service unit for production
+- [x] Integration guide with pmVPN server (dual tmux, systemd)
+- [x] Mobile workflow documentation (Claude iOS/Android app)
+- [x] Security model documentation (what flows through API, what stays local)
+
+### Phase 9.6: Crypto-SSH Module ✅
+
+- [x] Wallet → SSH: HKDF derivation (secp256k1 → Ed25519 keypair)
+- [x] Wallet → SSH: secp256k1 native SSH key type (ecdsa-sha2-secp256k1)
+- [x] Wallet → SSH: SSH agent bridge (wallet as agent backend)
+- [x] SSH → Wallet: HKDF derivation (Ed25519 → secp256k1 wallet)
+- [x] SSH → Wallet: HD wallet seed (BIP-32/BIP-44 multi-chain derivation)
+- [x] SSH → Wallet: SSH key as EVM transaction signer
+- [x] SSH → Wallet: Server host key as service wallet
+- [x] SSH → Wallet: YubiKey/hardware token signature-based derivation
+- [x] SSH → Wallet: Multi-chain derivation (Ethereum, Bitcoin, Algorand, Solana)
+- [x] OpenSSH private key parser (openssh-key-v1 format)
+- [x] Full BIP-32 hardened child key derivation
+- [x] Comprehensive CRYPTO-SSH.md documentation
+- [x] Heritage documentation: csshd, cSSHwallet lineage
+
 ### Phase 10: Hardening (Future)
 
 - [ ] Security audit (input validation, path traversal, replay)
@@ -171,6 +198,8 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | [CLIENT.md](CLIENT.md) | Parsec client module documentation |
 | [ANDROID.md](ANDROID.md) | Android build, install, and connection guide |
 | [metamaskbestpractice.md](metamaskbestpractice.md) | MetaMask auth standard practice |
+| [REMOTE-CONTROL.md](REMOTE-CONTROL.md) | Claude Remote Control — handheld AI server administration |
+| [CRYPTO-SSH.md](CRYPTO-SSH.md) | Bidirectional key derivation between SSH and crypto wallets |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 
 ---
