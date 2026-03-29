@@ -11,7 +11,7 @@
 // Private key NEVER touches this application.
 
 import { injectStyles } from './style';
-import { hasMetaMask, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
+import { hasMetaMask, isMobile, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
 import { createFileBrowser } from './files';
 import { bootstrapServer, deploySSHKey } from './bootstrap';
@@ -119,6 +119,9 @@ export function createApp(): HTMLElement {
     metamaskBtn.disabled = true;
     metamaskBtn.innerHTML = '🦊 MetaMask Not Found';
     walletSection.appendChild(mk('div', 'pmvpn-hint', 'Install <a href="https://metamask.io" target="_blank">MetaMask</a> to connect.'));
+  } else if (isMobile() && !(window as any).ethereum?.isMetaMask) {
+    // Mobile with MetaMask app installed (no extension) — SDK will deep link
+    metamaskBtn.innerHTML = '🦊 Open MetaMask App';
   }
 
   walletSection.append(metamaskBtn, walletInfo);
