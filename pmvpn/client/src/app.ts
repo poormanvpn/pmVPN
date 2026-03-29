@@ -310,21 +310,26 @@ export function createApp(): HTMLElement {
   }
   startResize(pmvpnResizer, pmvpnPanel);
 
-  // LOG sub-bar inside the PMVPN panel (below detail sections / Import Profiles)
-  logEl = mk('div', 'pmvpn-log');
-  const logSubPanel = mk('div', 'pmvpn-log-sub collapsed');
-  const logSubBar = mk('div', 'pmvpn-panel-bar pmvpn-log-sub-bar');
-  logSubBar.innerHTML = `<span class="pmvpn-panel-label">Log</span><span class="pmvpn-panel-chevron">&#9650;</span>`;
-  logSubBar.addEventListener('click', () => {
-    logSubPanel.classList.toggle('collapsed');
-    logSubBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = logSubPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
-  });
-  logSubPanel.append(logSubBar, logEl);
-
-  // Assemble: details sections, then LOG sub-panel
-  pmvpnContent.append(detailSections, logSubPanel);
+  // Assemble PMVPN panel: details sections only
+  pmvpnContent.append(detailSections);
   pmvpnPanel.append(pmvpnResizer, pmvpnBar, pmvpnContent);
-  footerWrap.append(pmvpnPanel);
+
+  // LOG panel — separate bar below PMVPN, own toggle
+  logEl = mk('div', 'pmvpn-log');
+  const logPanel = mk('div', 'pmvpn-panel pmvpn-log-panel collapsed');
+  const logBar = mk('div', 'pmvpn-panel-bar');
+  logBar.innerHTML = `<span class="pmvpn-panel-label">Log</span><span class="pmvpn-panel-chevron">&#9650;</span>`;
+  logBar.addEventListener('click', () => {
+    logPanel.classList.toggle('collapsed');
+    logBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = logPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
+  });
+  const logContent = mk('div', 'pmvpn-panel-content');
+  logContent.appendChild(logEl);
+  const logResizer = mk('div', 'pmvpn-panel-resizer');
+  startResize(logResizer, logPanel);
+  logPanel.append(logResizer, logBar, logContent);
+
+  footerWrap.append(pmvpnPanel, logPanel);
 
   // ── Status Bar ──
   const statusBar = mk('div', 'pmvpn-status', `

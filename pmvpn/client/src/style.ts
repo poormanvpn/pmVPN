@@ -601,23 +601,17 @@ textarea.pmvpn-input {
   min-height: 0;
 }
 
-/* LOG sub-panel inside PMVPN panel */
-.pmvpn-log-sub {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--border);
+/* LOG panel — separate bar below PMVPN */
+.pmvpn-log-panel {
+  height: 160px;
+  border-top: none;
 }
 
-.pmvpn-log-sub.collapsed .pmvpn-log {
-  display: none;
+.pmvpn-log-panel.collapsed {
+  height: 28px;
 }
 
-.pmvpn-log-sub .pmvpn-log {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.pmvpn-log-sub-bar {
+.pmvpn-log-panel .pmvpn-panel-bar {
   background: var(--popover);
 }
 
@@ -1120,11 +1114,40 @@ textarea.pmvpn-input {
   .pmvpn-share-container { padding: 8px; }
   .pmvpn-share-section { padding: 10px; margin-bottom: 8px; }
 
-  /* Footer panels: compact on mobile */
-  .pmvpn-panel { height: 28px; }
+  /* Footer panels: mobile — expand upward over content */
+  .pmvpn-footer-wrap {
+    position: relative;
+  }
+
+  .pmvpn-panel {
+    height: auto;
+    max-height: 28px;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+
+  .pmvpn-panel.collapsed {
+    height: auto;
+    max-height: 28px;
+    overflow: hidden;
+  }
+
+  /* When opened on mobile: slide up over main content */
+  .pmvpn-panel:not(.collapsed) {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
   .pmvpn-panel-bar { padding: 4px 10px; }
   .pmvpn-panel-label { font-size: 9px; }
+  .pmvpn-panel-content { overflow-y: auto; }
   .pmvpn-footer-details .pmvpn-section { padding: 6px 10px; }
+  .pmvpn-footer-details .pmvpn-btn { font-size: 11px; padding: 7px; margin-top: 4px; }
+
+  /* LOG panel on mobile */
+  .pmvpn-log-panel { height: auto; max-height: 28px; }
+  .pmvpn-log-panel:not(.collapsed) { max-height: 40vh; }
+  .pmvpn-log-panel .pmvpn-panel-bar { padding: 4px 10px; }
 
   /* Status: compact */
   .pmvpn-status {
