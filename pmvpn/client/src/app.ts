@@ -275,13 +275,15 @@ export function createApp(): HTMLElement {
   // ── Footer: single PMVPN panel with LOG sub-section inside ──
   const footerWrap = mk('div', 'pmvpn-footer-wrap');
 
-  const pmvpnPanel = mk('div', 'pmvpn-panel collapsed');
+  // PMVPN panel — starts OPEN (not collapsed) so options are visible
+  const pmvpnPanel = mk('div', 'pmvpn-panel');
   const pmvpnBar = mk('div', 'pmvpn-panel-bar');
-  pmvpnBar.innerHTML = `<span class="pmvpn-panel-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span><span class="pmvpn-panel-chevron">&#9650;</span>`;
+  pmvpnBar.innerHTML = `<span class="pmvpn-panel-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span><span class="pmvpn-panel-chevron">&#9660;</span>`;
   const pmvpnContent = mk('div', 'pmvpn-panel-content');
 
   pmvpnBar.addEventListener('click', () => {
     pmvpnPanel.classList.toggle('collapsed');
+    pmvpnPanel.style.height = '';  // clear any inline height from resize
     pmvpnBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = pmvpnPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
   });
 
@@ -321,6 +323,7 @@ export function createApp(): HTMLElement {
   logBar.innerHTML = `<span class="pmvpn-panel-label">Log</span><span class="pmvpn-panel-chevron">&#9650;</span>`;
   logBar.addEventListener('click', () => {
     logPanel.classList.toggle('collapsed');
+    logPanel.style.height = '';  // clear any inline height from resize
     logBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = logPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
   });
   const logContent = mk('div', 'pmvpn-panel-content');
