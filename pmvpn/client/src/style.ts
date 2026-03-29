@@ -349,7 +349,11 @@ textarea.pmvpn-input {
 }
 
 .pmvpn-conn-header h3 { margin: 0; }
-.pmvpn-conn-list { margin-top: 8px; }
+.pmvpn-conn-list {
+  margin-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
 
 .pmvpn-conn-item {
   display: flex;
@@ -542,6 +546,10 @@ textarea.pmvpn-input {
 .pmvpn-log-footer.collapsed {
   height: 28px;
   overflow: hidden;
+}
+
+.pmvpn-log-footer.maximized {
+  height: 70vh;
 }
 
 .pmvpn-log-resizer {
@@ -898,6 +906,43 @@ textarea.pmvpn-input {
 }
 
 .pmvpn-share-file-row:hover { background: var(--popover); }
+
+/* ══════════════════════════════════════════════════════
+   DRAG AND DROP
+   ══════════════════════════════════════════════════════ */
+
+/* Connection list drag-and-drop reorder */
+.pmvpn-conn-grip {
+  color: var(--muted);
+  font-size: 10px;
+  cursor: grab;
+  user-select: none;
+  margin-right: 6px;
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+}
+.pmvpn-conn-item:hover .pmvpn-conn-grip { opacity: 1; }
+.pmvpn-conn-item.dragging { opacity: 0.4; }
+.pmvpn-conn-item.drag-over {
+  border-top: 2px solid var(--primary);
+  margin-top: -2px;
+}
+
+.pmvpn-conn-actions {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+/* File drag-and-drop */
+.pmvpn-file-row[draggable="true"] { cursor: grab; }
+.pmvpn-file-row.dragging { opacity: 0.3; }
+.pmvpn-file-list.drop-target {
+  background: rgba(137,180,250,0.06);
+  outline: 2px dashed var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+}
 
 /* ══════════════════════════════════════════════════════
    SCROLLBAR

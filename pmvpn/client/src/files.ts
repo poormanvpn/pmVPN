@@ -176,14 +176,89 @@ export function createFileBrowser(
   function createRow(name: string, size: string, modified: string, type: string, perms: string): HTMLElement {
     const row = document.createElement('div');
     row.className = `pmvpn-file-row ${type}`;
+    row.draggable = type === 'file';
     row.innerHTML = `
       <span class="pmvpn-file-icon">${type === 'directory' ? '📁' : '📄'}</span>
       <span class="pmvpn-file-name">${name}</span>
       <span class="pmvpn-file-size">${size}</span>
       <span class="pmvpn-file-date">${modified}</span>
     `;
+
+    // Drag: file rows are draggable for cross-server and local transfer
+    if (type === 'file') {
+      row.addEventListener('dragstart', (e) => {
+        const fullPath = currentPath === '/' ? name : `${currentPath}/${name}`;
+        // Encode source info so drop target knows which server + path
+        e.dataTransfer!.setData('application/x-pmvpn-file', JSON.stringify({
+          name,
+          path: fullPath,
+          size,
+          connId: term.connId || '',
+        }));
+        e.dataTransfer!.effectAllowed = 'copyMove';
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    }
+
     return row;
   }
+
+  // Drop zone: accept files from other servers or from local filesystem
+  fileList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'copy';
+    fileList.classList.add('drop-target');
+  });
+  fileList.addEventListener('dragleave', () => fileList.classList.remove('drop-target'));
+  fileList.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    fileList.classList.remove('drop-target');
+
+    // Case 1: file from another pmVPN server (cross-server transfer)
+    const pmvpnData = e.dataTransfer!.getData('application/x-pmvpn-file');
+    if (pmvpnData) {
+      try {
+        const src = JSON.parse(pmvpnData);
+        if (src.connId === (term.connId || '')) {
+          log('cannot drop file onto same server — use move/rename instead', 'info');
+          return;
+        }
+        log(`cross-server transfer: ${src.name} → ${currentPath}`, 'info');
+        status.textContent = `receiving: ${src.name}...`;
+        // Emit custom event for app.ts to orchestrate the cross-server copy
+        root.dispatchEvent(new CustomEvent('pmvpn-cross-transfer', {
+          bubbles: true,
+          detail: { srcConnId: src.connId, srcPath: src.path, dstPath: currentPath, fileName: src.name },
+        }));
+      } catch { /* ignore malformed */ }
+      return;
+    }
+
+    // Case 2: local files dragged from OS file manager
+    const files = e.dataTransfer!.files;
+    if (files.length > 0) {
+      for (const file of Array.from(files)) {
+        status.textContent = `uploading: ${file.name}...`;
+        log(`local drop: uploading ${file.name} (${fmtSize(file.size)})`, 'info');
+        try {
+          const buffer = await file.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+          const remotePath = currentPath === '/' ? file.name : `${currentPath}/${file.name}`;
+          const result = await term.sendSftp('put', remotePath, base64);
+          if (result.ok) {
+            log(`uploaded: ${file.name}`, 'success');
+          } else {
+            log(`upload failed: ${result.error}`, 'error');
+          }
+        } catch (e: any) {
+          log(`upload error: ${e.message}`, 'error');
+        }
+      }
+      status.textContent = '';
+      loadDir(currentPath);
+    }
+  });
 
   function renderBreadcrumb(): void {
     const parts = currentPath.split('/').filter(Boolean);

@@ -8,6 +8,7 @@ import { FitAddon } from '@xterm/addon-fit';
 export interface TerminalInstance {
   terminal: Terminal;
   fitAddon: FitAddon;
+  connId: string;
   mount: (el: HTMLElement) => void;
   connectWs: (url: string, authPayload: string, onAuth: (ok: boolean, user?: string, error?: string) => void) => void;
   sendSftp: (cmd: string, path: string, data?: string) => Promise<any>;
@@ -201,5 +202,5 @@ export function createTerminal(): TerminalInstance {
     return ws !== null && ws.readyState === WebSocket.OPEN;
   }
 
-  return { terminal, fitAddon, mount, connectWs, sendSftp, sendTyped, disconnect, destroy, isConnected };
+  return { terminal, fitAddon, connId: '', mount, connectWs, sendSftp, sendTyped, disconnect, destroy, isConnected };
 }

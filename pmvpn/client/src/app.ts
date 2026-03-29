@@ -280,34 +280,57 @@ export function createApp(): HTMLElement {
     <span class="pmvpn-log-handle-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span>
     <span class="pmvpn-log-handle-chevron">&#9650;</span>
   `;
+  // Footer states: collapsed (28px), expanded (200px), maximized (70vh)
   logHandle.addEventListener('click', () => {
-    logFooter.classList.toggle('collapsed');
     const chevron = logHandle.querySelector('.pmvpn-log-handle-chevron')!;
-    chevron.innerHTML = logFooter.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
+    if (logFooter.classList.contains('collapsed')) {
+      // Collapsed → expanded
+      logFooter.classList.remove('collapsed');
+      logFooter.classList.remove('maximized');
+      logFooter.style.height = '';  // use CSS default (200px)
+      chevron.innerHTML = '&#9660;';
+    } else if (!logFooter.classList.contains('maximized')) {
+      // Expanded → maximized (server panels take over)
+      logFooter.classList.add('maximized');
+      chevron.innerHTML = '&#9660;';
+    } else {
+      // Maximized → collapsed
+      logFooter.classList.remove('maximized');
+      logFooter.classList.add('collapsed');
+      logFooter.style.height = '';
+      chevron.innerHTML = '&#9650;';
+    }
   });
 
   logEl = mk('div', 'pmvpn-log');
 
-  // Resize drag handle
+  // Resize drag handle (mouse + touch)
   const logResizer = mk('div', 'pmvpn-log-resizer');
-  let resizing = false;
-  logResizer.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    resizing = true;
-    const startY = e.clientY;
+  function startResize(startY: number) {
     const startH = logFooter.offsetHeight;
-    const onMove = (ev: MouseEvent) => {
-      if (!resizing) return;
-      const newH = Math.max(60, Math.min(400, startH - (ev.clientY - startY)));
+    const maxH = window.innerHeight * 0.8;
+    const onMove = (y: number) => {
+      const newH = Math.max(60, Math.min(maxH, startH - (y - startY)));
       logFooter.style.height = `${newH}px`;
       logFooter.classList.remove('collapsed');
-      const chevron = logHandle.querySelector('.pmvpn-log-handle-chevron')!;
-      chevron.innerHTML = '&#9660;';
+      logFooter.classList.remove('maximized');
+      logHandle.querySelector('.pmvpn-log-handle-chevron')!.innerHTML = '&#9660;';
     };
-    const onUp = () => { resizing = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
+    const onMouseMove = (ev: MouseEvent) => onMove(ev.clientY);
+    const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientY); };
+    const cleanup = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', cleanup);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', cleanup);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', cleanup);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', cleanup);
+  }
+  logResizer.addEventListener('mousedown', (e) => { e.preventDefault(); startResize(e.clientY); });
+  logResizer.addEventListener('touchstart', (e) => { e.preventDefault(); startResize(e.touches[0].clientY); }, { passive: false });
 
   logFooter.append(logResizer, logHandle, detailSections, logEl);
 
@@ -319,6 +342,36 @@ export function createApp(): HTMLElement {
 
   body.append(sidebar, main);
   root.append(header, body, logFooter, statusBar);
+
+  // ── Cross-server file transfer handler ──
+  // Listens for pmvpn-cross-transfer events from file browsers
+  root.addEventListener('pmvpn-cross-transfer', async (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    const { srcConnId, srcPath, dstPath, fileName } = detail;
+    const srcSession = sessions.get(srcConnId);
+    const dstSession = activeConnId ? sessions.get(activeConnId) : null;
+    if (!srcSession || !dstSession) {
+      log('cross-transfer failed: source or destination session not found', 'error');
+      return;
+    }
+    log(`transferring ${fileName}: ${srcConnId.slice(0,8)} → ${activeConnId?.slice(0,8)}`, 'info');
+    try {
+      // Step 1: download from source server
+      const getResult = await srcSession.term.sendSftp('get', srcPath);
+      if (!getResult.ok) { log(`transfer failed: ${getResult.error}`, 'error'); return; }
+      // Step 2: upload to destination server
+      const remoteDst = dstPath === '/' ? fileName : `${dstPath}/${fileName}`;
+      const putResult = await dstSession.term.sendSftp('put', remoteDst, getResult.data);
+      if (!putResult.ok) { log(`transfer upload failed: ${putResult.error}`, 'error'); return; }
+      log(`transferred: ${fileName} (${getResult.data.length} bytes base64)`, 'success');
+      // Refresh destination file list
+      if (activeTab === 'files' && dstSession.fileBrowser) {
+        dstSession.fileBrowser.refresh();
+      }
+    } catch (err: any) {
+      log(`cross-transfer error: ${err.message}`, 'error');
+    }
+  });
 
   // ── Diagnostics — real end-to-end tests ──
   async function runDiagnostics() {
@@ -445,11 +498,19 @@ export function createApp(): HTMLElement {
     return `${Math.floor(s / 86400)}d${Math.floor((s % 86400) / 3600)}h`;
   }
 
-  // ── Render connections list ──
+  // ── Render connections list (with drag-and-drop reorder) ──
+  let dragSrcIdx: number | null = null;
+
   function renderConnections() {
     connList.innerHTML = '';
-    for (const conn of connections) {
+    connections.forEach((conn, idx) => {
       const item = mk('div', `pmvpn-conn-item ${conn.status} ${activeConnId === conn.id ? 'active' : ''}`);
+      item.draggable = true;
+      item.dataset.idx = String(idx);
+
+      // Drag handle indicator
+      const grip = mk('span', 'pmvpn-conn-grip', '⠿');
+      grip.title = 'Drag to reorder';
 
       const info = mk('div', 'pmvpn-conn-info');
       info.innerHTML = `
@@ -458,6 +519,8 @@ export function createApp(): HTMLElement {
         <div class="pmvpn-conn-status">${conn.status}</div>
       `;
       info.addEventListener('click', () => doConnectTo(conn));
+
+      const actions = mk('div', 'pmvpn-conn-actions');
 
       // Kill button — disconnect this specific session
       if (conn.status === 'connected') {
@@ -469,7 +532,7 @@ export function createApp(): HTMLElement {
           e.stopPropagation();
           killConnection(conn);
         });
-        item.appendChild(killBtn);
+        actions.appendChild(killBtn);
       }
 
       const removeBtn = document.createElement('button');
@@ -484,10 +547,42 @@ export function createApp(): HTMLElement {
         renderConnections();
         log(`removed: ${conn.name}`, 'info');
       });
+      actions.appendChild(removeBtn);
 
-      item.append(info, removeBtn);
+      // Drag-and-drop reorder
+      item.addEventListener('dragstart', (e) => {
+        dragSrcIdx = idx;
+        item.classList.add('dragging');
+        e.dataTransfer!.effectAllowed = 'move';
+        e.dataTransfer!.setData('text/plain', String(idx));
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        connList.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        dragSrcIdx = null;
+      });
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'move';
+        item.classList.add('drag-over');
+      });
+      item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        item.classList.remove('drag-over');
+        const fromIdx = dragSrcIdx;
+        const toIdx = idx;
+        if (fromIdx === null || fromIdx === toIdx) return;
+        const [moved] = connections.splice(fromIdx, 1);
+        connections.splice(toIdx, 0, moved);
+        saveConnections();
+        renderConnections();
+        log(`reordered: ${moved.name}`, 'info');
+      });
+
+      item.append(grip, info, actions);
       connList.appendChild(item);
-    }
+    });
   }
 
   function showAddForm() {
@@ -723,6 +818,7 @@ export function createApp(): HTMLElement {
 
       // Create terminal for this host
       const hostTerm = createTerminal();
+      hostTerm.connId = conn.id;
       hostTerm.mount(termEl);
 
       log(`${conn.name}: connecting ws://${conn.host}:${wsPort}...`, 'info');
