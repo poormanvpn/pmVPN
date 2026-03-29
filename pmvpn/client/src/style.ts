@@ -530,29 +530,28 @@ textarea.pmvpn-input {
    LOG
    ══════════════════════════════════════════════════════ */
 
-/* ── Log Footer — collapsible, resizable ── */
+/* ── Footer panels — collapsible, resizable ── */
 
-.pmvpn-log-footer {
+.pmvpn-footer-wrap {
   flex-shrink: 0;
+}
+
+.pmvpn-panel {
   display: flex;
   flex-direction: column;
-  height: 200px;
+  height: 220px;
   border-top: 1px solid var(--border);
   background: var(--sidebar);
   transition: height 0.2s ease;
   position: relative;
 }
 
-.pmvpn-log-footer.collapsed {
+.pmvpn-panel.collapsed {
   height: 28px;
   overflow: hidden;
 }
 
-.pmvpn-log-footer.maximized {
-  height: 70vh;
-}
-
-.pmvpn-log-resizer {
+.pmvpn-panel-resizer {
   height: 4px;
   cursor: ns-resize;
   background: transparent;
@@ -563,12 +562,12 @@ textarea.pmvpn-input {
   z-index: 5;
 }
 
-.pmvpn-log-resizer:hover {
+.pmvpn-panel-resizer:hover {
   background: var(--primary);
   opacity: 0.4;
 }
 
-.pmvpn-log-handle {
+.pmvpn-panel-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -580,9 +579,9 @@ textarea.pmvpn-input {
   border-bottom: 1px solid var(--border);
 }
 
-.pmvpn-log-handle:hover { background: var(--muted); }
+.pmvpn-panel-bar:hover { background: var(--muted); }
 
-.pmvpn-log-handle-label {
+.pmvpn-panel-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -591,39 +590,35 @@ textarea.pmvpn-input {
   font-family: 'JetBrains Mono', monospace;
 }
 
-.pmvpn-log-handle-chevron {
+.pmvpn-panel-chevron {
   font-size: 10px;
   color: var(--muted-foreground);
 }
 
-/* Footer tabs: pmVPN | Log */
-.pmvpn-footer-tabs {
+.pmvpn-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* LOG sub-panel inside PMVPN panel */
+.pmvpn-log-sub {
   display: flex;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  padding: 0 4px;
-  flex-shrink: 0;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
 }
 
-.pmvpn-footer-tab {
-  padding: 5px 16px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  font-family: 'JetBrains Mono', monospace;
+.pmvpn-log-sub.collapsed .pmvpn-log {
+  display: none;
 }
 
-.pmvpn-footer-tab:hover { color: var(--foreground); }
-.pmvpn-footer-tab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+.pmvpn-log-sub .pmvpn-log {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pmvpn-log-sub-bar {
+  background: var(--popover);
 }
 
 .pmvpn-footer-details {
@@ -1125,19 +1120,11 @@ textarea.pmvpn-input {
   .pmvpn-share-container { padding: 8px; }
   .pmvpn-share-section { padding: 10px; margin-bottom: 8px; }
 
-  /* Footer: collapsed by default, details stack vertically */
-  .pmvpn-log-footer {
-    height: 28px;
-    max-height: 60vh;
-  }
-  .pmvpn-log-footer.collapsed { height: 28px; }
-  .pmvpn-log-handle { padding: 4px 10px; }
-  .pmvpn-log-handle-label { font-size: 9px; }
-  .pmvpn-footer-tab { padding: 4px 10px; font-size: 9px; }
-
-  .pmvpn-footer-details .pmvpn-section {
-    padding: 6px 10px;
-  }
+  /* Footer panels: compact on mobile */
+  .pmvpn-panel { height: 28px; }
+  .pmvpn-panel-bar { padding: 4px 10px; }
+  .pmvpn-panel-label { font-size: 9px; }
+  .pmvpn-footer-details .pmvpn-section { padding: 6px 10px; }
 
   /* Status: compact */
   .pmvpn-status {

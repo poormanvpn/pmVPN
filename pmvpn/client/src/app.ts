@@ -272,88 +272,59 @@ export function createApp(): HTMLElement {
   `);
   main.appendChild(placeholder);
 
-  // ── Log Footer (collapsible, resizable) ──
-  const logFooter = mk('div', 'pmvpn-log-footer collapsed');
+  // ── Footer: single PMVPN panel with LOG sub-section inside ──
+  const footerWrap = mk('div', 'pmvpn-footer-wrap');
 
-  const logHandle = mk('div', 'pmvpn-log-handle');
-  logHandle.innerHTML = `
-    <span class="pmvpn-log-handle-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span>
-    <span class="pmvpn-log-handle-chevron">&#9650;</span>
-  `;
-  // Footer states: collapsed (28px), expanded (200px), maximized (70vh)
-  logHandle.addEventListener('click', () => {
-    const chevron = logHandle.querySelector('.pmvpn-log-handle-chevron')!;
-    if (logFooter.classList.contains('collapsed')) {
-      // Collapsed → expanded
-      logFooter.classList.remove('collapsed');
-      logFooter.classList.remove('maximized');
-      logFooter.style.height = '';  // use CSS default (200px)
-      chevron.innerHTML = '&#9660;';
-    } else if (!logFooter.classList.contains('maximized')) {
-      // Expanded → maximized (server panels take over)
-      logFooter.classList.add('maximized');
-      chevron.innerHTML = '&#9660;';
-    } else {
-      // Maximized → collapsed
-      logFooter.classList.remove('maximized');
-      logFooter.classList.add('collapsed');
-      logFooter.style.height = '';
-      chevron.innerHTML = '&#9650;';
-    }
+  const pmvpnPanel = mk('div', 'pmvpn-panel collapsed');
+  const pmvpnBar = mk('div', 'pmvpn-panel-bar');
+  pmvpnBar.innerHTML = `<span class="pmvpn-panel-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span><span class="pmvpn-panel-chevron">&#9650;</span>`;
+  const pmvpnContent = mk('div', 'pmvpn-panel-content');
+
+  pmvpnBar.addEventListener('click', () => {
+    pmvpnPanel.classList.toggle('collapsed');
+    pmvpnBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = pmvpnPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
   });
 
+  // Resize handle
+  const pmvpnResizer = mk('div', 'pmvpn-panel-resizer');
+  function startResize(resizer: HTMLElement, panel: HTMLElement) {
+    function start(startY: number) {
+      const startH = panel.offsetHeight;
+      const maxH = window.innerHeight * 0.8;
+      const onMove = (y: number) => {
+        const newH = Math.max(80, Math.min(maxH, startH - (y - startY)));
+        panel.style.height = `${newH}px`;
+        panel.classList.remove('collapsed');
+        panel.querySelector('.pmvpn-panel-chevron')!.innerHTML = '&#9660;';
+      };
+      const onMM = (ev: MouseEvent) => onMove(ev.clientY);
+      const onTM = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientY); };
+      const up = () => { document.removeEventListener('mousemove', onMM); document.removeEventListener('mouseup', up); document.removeEventListener('touchmove', onTM); document.removeEventListener('touchend', up); };
+      document.addEventListener('mousemove', onMM);
+      document.addEventListener('mouseup', up);
+      document.addEventListener('touchmove', onTM, { passive: false });
+      document.addEventListener('touchend', up);
+    }
+    resizer.addEventListener('mousedown', (e) => { e.preventDefault(); start(e.clientY); });
+    resizer.addEventListener('touchstart', (e) => { e.preventDefault(); start(e.touches[0].clientY); }, { passive: false });
+  }
+  startResize(pmvpnResizer, pmvpnPanel);
+
+  // LOG sub-bar inside the PMVPN panel (below detail sections / Import Profiles)
   logEl = mk('div', 'pmvpn-log');
+  const logSubPanel = mk('div', 'pmvpn-log-sub collapsed');
+  const logSubBar = mk('div', 'pmvpn-panel-bar pmvpn-log-sub-bar');
+  logSubBar.innerHTML = `<span class="pmvpn-panel-label">Log</span><span class="pmvpn-panel-chevron">&#9650;</span>`;
+  logSubBar.addEventListener('click', () => {
+    logSubPanel.classList.toggle('collapsed');
+    logSubBar.querySelector('.pmvpn-panel-chevron')!.innerHTML = logSubPanel.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
+  });
+  logSubPanel.append(logSubBar, logEl);
 
-  // Footer tabs: pmVPN (details) | Log
-  const footerTabs = mk('div', 'pmvpn-footer-tabs');
-  const ftPmvpn = mk('button', 'pmvpn-footer-tab active', 'pmVPN');
-  const ftLog = mk('button', 'pmvpn-footer-tab', 'Log');
-  let footerActiveTab: 'pmvpn' | 'log' = 'pmvpn';
-
-  function switchFooterTab(tab: 'pmvpn' | 'log') {
-    footerActiveTab = tab;
-    ftPmvpn.className = `pmvpn-footer-tab ${tab === 'pmvpn' ? 'active' : ''}`;
-    ftLog.className = `pmvpn-footer-tab ${tab === 'log' ? 'active' : ''}`;
-    detailSections.style.display = tab === 'pmvpn' ? '' : 'none';
-    logEl.style.display = tab === 'log' ? '' : 'none';
-  }
-
-  ftPmvpn.addEventListener('click', () => switchFooterTab('pmvpn'));
-  ftLog.addEventListener('click', () => switchFooterTab('log'));
-  footerTabs.append(ftPmvpn, ftLog);
-
-  // Log hidden by default (pmVPN tab active)
-  logEl.style.display = 'none';
-
-  // Resize drag handle (mouse + touch)
-  const logResizer = mk('div', 'pmvpn-log-resizer');
-  function startResize(startY: number) {
-    const startH = logFooter.offsetHeight;
-    const maxH = window.innerHeight * 0.8;
-    const onMove = (y: number) => {
-      const newH = Math.max(60, Math.min(maxH, startH - (y - startY)));
-      logFooter.style.height = `${newH}px`;
-      logFooter.classList.remove('collapsed');
-      logFooter.classList.remove('maximized');
-      logHandle.querySelector('.pmvpn-log-handle-chevron')!.innerHTML = '&#9660;';
-    };
-    const onMouseMove = (ev: MouseEvent) => onMove(ev.clientY);
-    const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientY); };
-    const cleanup = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', cleanup);
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', cleanup);
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', cleanup);
-    document.addEventListener('touchmove', onTouchMove, { passive: false });
-    document.addEventListener('touchend', cleanup);
-  }
-  logResizer.addEventListener('mousedown', (e) => { e.preventDefault(); startResize(e.clientY); });
-  logResizer.addEventListener('touchstart', (e) => { e.preventDefault(); startResize(e.touches[0].clientY); }, { passive: false });
-
-  logFooter.append(logResizer, logHandle, footerTabs, detailSections, logEl);
+  // Assemble: details sections, then LOG sub-panel
+  pmvpnContent.append(detailSections, logSubPanel);
+  pmvpnPanel.append(pmvpnResizer, pmvpnBar, pmvpnContent);
+  footerWrap.append(pmvpnPanel);
 
   // ── Status Bar ──
   const statusBar = mk('div', 'pmvpn-status', `
@@ -362,7 +333,7 @@ export function createApp(): HTMLElement {
   `);
 
   body.append(sidebar, main);
-  root.append(header, body, logFooter, statusBar);
+  root.append(header, body, footerWrap, statusBar);
 
   // ── Cross-server file transfer handler ──
   // Listens for pmvpn-cross-transfer events from file browsers
