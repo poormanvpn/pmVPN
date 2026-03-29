@@ -242,6 +242,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 | [CRYPTO-SSH.md](CRYPTO-SSH.md) | Bidirectional key derivation between SSH and crypto wallets |
 | [BLOCKTALK.md](BLOCKTALK.md) | blocktalk v2 — wallet-gated rooms, XMTP integration, dojo multi-chat |
 | [CITADEL.md](CITADEL.md) | Citadel — blockchain-permanent, token-gated rooms, distributed social networking |
+| [AUDIT.md](AUDIT.md) | Full codebase audit — security, correctness, cryptographic review, limitations |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file — roadmap and status |
 
 ---

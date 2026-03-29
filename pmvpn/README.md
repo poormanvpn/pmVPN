@@ -584,6 +584,7 @@ Zero dependencies. Uses only [`node:crypto`](https://nodejs.org/api/crypto.html)
 | **[CITADEL.md](docs/CITADEL.md)** | Citadel — blockchain-permanent token-gated rooms, on-chain registry ([Algorand](https://algorand.co/) + EVM), 5 gate types ([ERC-721](https://eips.ethereum.org/EIPS/eip-721)/[1155](https://eips.ethereum.org/EIPS/eip-1155)/[20](https://eips.ethereum.org/EIPS/eip-20)/[ASA](https://developer.algorand.org/docs/get-details/asa/)), room resurrection, distributed social networking |
 | **[REMOTE-CONTROL.md](docs/REMOTE-CONTROL.md)** | Claude Remote Control — AI-powered server administration from phone, tablet, or any browser |
 | **[metamaskbestpractice.md](docs/metamaskbestpractice.md)** | [MetaMask](https://metamask.io/) disconnect standard practice — wallet_revokePermissions, lock state detection, mandatory signature |
+| **[AUDIT.md](docs/AUDIT.md)** | Full codebase audit — 29 issues found, 13 fixed, security review, cryptographic verification, limitations, Phase 10 recommendations |
 | **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Roadmap — 9.8 of 10 phases complete, dependency audit, reference corpus |
 
 ---
