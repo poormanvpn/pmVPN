@@ -628,22 +628,24 @@ textarea.pmvpn-input {
 
 .pmvpn-footer-details {
   display: flex;
-  gap: 0;
+  flex-direction: column;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  padding: 0;
 }
 
 .pmvpn-footer-details .pmvpn-section {
-  flex: 1;
-  min-width: 200px;
-  border-bottom: none;
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
 }
 
 .pmvpn-footer-details .pmvpn-section:last-child {
-  border-right: none;
+  border-bottom: none;
+}
+
+.pmvpn-footer-details .pmvpn-section h3 {
+  margin-bottom: 6px;
 }
 
 .pmvpn-log {
@@ -1133,14 +1135,8 @@ textarea.pmvpn-input {
   .pmvpn-log-handle-label { font-size: 9px; }
   .pmvpn-footer-tab { padding: 4px 10px; font-size: 9px; }
 
-  .pmvpn-footer-details {
-    flex-direction: column;
-    max-height: none;
-  }
   .pmvpn-footer-details .pmvpn-section {
-    min-width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
   }
 
   /* Status: compact */
