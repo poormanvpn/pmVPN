@@ -74,12 +74,7 @@ export function createApp(): HTMLElement {
 
   // ── Header with Logout ──
   const header = mk('div', 'pmvpn-header');
-  header.innerHTML = `
-    <div>
-      <div class="pmvpn-title">pmVPN</div>
-      <div class="pmvpn-subtitle">WALLET-AUTHENTICATED REMOTE ACCESS</div>
-    </div>
-  `;
+  header.innerHTML = `<div class="pmvpn-title">pmVPN</div>`;
   const headerRight = mk('div', 'pmvpn-header-right');
   const addrDisplay = mk('span', 'pmvpn-addr-display');
   const logoutBtn = document.createElement('button');
@@ -99,6 +94,15 @@ export function createApp(): HTMLElement {
 
   const body = mk('div', 'pmvpn-body');
   const sidebar = mk('div', 'pmvpn-sidebar');
+  // Mobile: tap sidebar header area to toggle expand/collapse
+  sidebar.addEventListener('click', (e) => {
+    if (window.innerWidth > 520) return;
+    if (!sidebar.classList.contains('pmvpn-sidebar-connected')) return;
+    // Only toggle if tapping the collapsed strip (not interactive children)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.closest('.pmvpn-add-form')) return;
+    sidebar.classList.toggle('pmvpn-sidebar-expanded');
+  });
   const main = mk('div', 'pmvpn-main');
 
   // ── Wallet Section ──
@@ -255,28 +259,66 @@ export function createApp(): HTMLElement {
 
   toolsSection.append(bootstrapBtn, deployKeyBtn, exportBtn, importBtn);
 
-  sidebar.append(walletSection, connSection, payloadSection, diagSection, toolsSection);
+  // Sidebar: only essential controls (wallet + connections)
+  sidebar.append(walletSection, connSection);
 
-  // ── Main: Terminal ──
+  // Detail sections go in the expandable footer
+  const detailSections = mk('div', 'pmvpn-footer-details');
+  detailSections.append(payloadSection, diagSection, toolsSection);
+
+  // ── Main: minimal prompt (functionality first, branding in footer) ──
   const placeholder = mk('div', 'pmvpn-placeholder', `
-    <div class="pmvpn-placeholder-title">pmVPN</div>
     <div class="pmvpn-placeholder-sub">Connect MetaMask → Select connection → Authenticate</div>
-    <div class="pmvpn-placeholder-sub" style="margin-top:16px;font-size:12px;color:var(--muted-foreground);max-width:400px;text-align:center">
-      Your private key never leaves MetaMask.<br>
-      pmVPN only sees your address and signature.
-    </div>
   `);
   main.appendChild(placeholder);
 
-  // ── Log & Status ──
+  // ── Log Footer (collapsible, resizable) ──
+  const logFooter = mk('div', 'pmvpn-log-footer collapsed');
+
+  const logHandle = mk('div', 'pmvpn-log-handle');
+  logHandle.innerHTML = `
+    <span class="pmvpn-log-handle-label">pmVPN <span style="color:var(--muted-foreground);font-weight:400;letter-spacing:0.3px">— wallet-authenticated remote access</span></span>
+    <span class="pmvpn-log-handle-chevron">&#9650;</span>
+  `;
+  logHandle.addEventListener('click', () => {
+    logFooter.classList.toggle('collapsed');
+    const chevron = logHandle.querySelector('.pmvpn-log-handle-chevron')!;
+    chevron.innerHTML = logFooter.classList.contains('collapsed') ? '&#9650;' : '&#9660;';
+  });
+
   logEl = mk('div', 'pmvpn-log');
+
+  // Resize drag handle
+  const logResizer = mk('div', 'pmvpn-log-resizer');
+  let resizing = false;
+  logResizer.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    resizing = true;
+    const startY = e.clientY;
+    const startH = logFooter.offsetHeight;
+    const onMove = (ev: MouseEvent) => {
+      if (!resizing) return;
+      const newH = Math.max(60, Math.min(400, startH - (ev.clientY - startY)));
+      logFooter.style.height = `${newH}px`;
+      logFooter.classList.remove('collapsed');
+      const chevron = logHandle.querySelector('.pmvpn-log-handle-chevron')!;
+      chevron.innerHTML = '&#9660;';
+    };
+    const onUp = () => { resizing = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  logFooter.append(logResizer, logHandle, detailSections, logEl);
+
+  // ── Status Bar ──
   const statusBar = mk('div', 'pmvpn-status', `
     <span><span class="pmvpn-status-dot disconnected" id="sd"></span><span id="st">Disconnected</span></span>
     <span id="si"></span>
   `);
 
   body.append(sidebar, main);
-  root.append(header, body, logEl, statusBar);
+  root.append(header, body, logFooter, statusBar);
 
   // ── Diagnostics — real end-to-end tests ──
   async function runDiagnostics() {
@@ -615,6 +657,9 @@ export function createApp(): HTMLElement {
     // Show active session based on current tab
     placeholder.style.display = 'none';
     tabBar.style.display = '';
+    // On mobile: collapse sidebar, expand main
+    sidebar.classList.add('pmvpn-sidebar-connected');
+    main.classList.add('pmvpn-main-active');
     if (activeTab === 'terminal') {
       session.termEl.style.display = '';
       requestAnimationFrame(() => session.term.fitAddon.fit());
