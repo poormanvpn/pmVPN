@@ -304,6 +304,27 @@ export function createApp(): HTMLElement {
 
   logEl = mk('div', 'pmvpn-log');
 
+  // Footer tabs: pmVPN (details) | Log
+  const footerTabs = mk('div', 'pmvpn-footer-tabs');
+  const ftPmvpn = mk('button', 'pmvpn-footer-tab active', 'pmVPN');
+  const ftLog = mk('button', 'pmvpn-footer-tab', 'Log');
+  let footerActiveTab: 'pmvpn' | 'log' = 'pmvpn';
+
+  function switchFooterTab(tab: 'pmvpn' | 'log') {
+    footerActiveTab = tab;
+    ftPmvpn.className = `pmvpn-footer-tab ${tab === 'pmvpn' ? 'active' : ''}`;
+    ftLog.className = `pmvpn-footer-tab ${tab === 'log' ? 'active' : ''}`;
+    detailSections.style.display = tab === 'pmvpn' ? '' : 'none';
+    logEl.style.display = tab === 'log' ? '' : 'none';
+  }
+
+  ftPmvpn.addEventListener('click', () => switchFooterTab('pmvpn'));
+  ftLog.addEventListener('click', () => switchFooterTab('log'));
+  footerTabs.append(ftPmvpn, ftLog);
+
+  // Log hidden by default (pmVPN tab active)
+  logEl.style.display = 'none';
+
   // Resize drag handle (mouse + touch)
   const logResizer = mk('div', 'pmvpn-log-resizer');
   function startResize(startY: number) {
@@ -332,7 +353,7 @@ export function createApp(): HTMLElement {
   logResizer.addEventListener('mousedown', (e) => { e.preventDefault(); startResize(e.clientY); });
   logResizer.addEventListener('touchstart', (e) => { e.preventDefault(); startResize(e.touches[0].clientY); }, { passive: false });
 
-  logFooter.append(logResizer, logHandle, detailSections, logEl);
+  logFooter.append(logResizer, logHandle, footerTabs, detailSections, logEl);
 
   // ── Status Bar ──
   const statusBar = mk('div', 'pmvpn-status', `
