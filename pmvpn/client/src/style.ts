@@ -102,6 +102,7 @@ body {
   padding: 10px 20px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;  /* never compress header */
 }
 
 .pmvpn-title {
@@ -167,6 +168,7 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;   /* allow flex child to shrink below content size */
 }
 
 .pmvpn-sidebar {
@@ -450,6 +452,9 @@ textarea.pmvpn-input {
   flex-direction: column;
   position: relative;
   background: var(--background);
+  min-width: 0;    /* prevent flex child from overflowing parent */
+  min-height: 0;   /* allow flex child to shrink below content size */
+  overflow: hidden; /* clip children that exceed bounds */
 }
 
 .pmvpn-placeholder {
@@ -484,11 +489,13 @@ textarea.pmvpn-input {
   background: rgba(0, 0, 0, 0.85);
   border: 1px solid var(--terminal-border);
   border-radius: var(--radius);
-  margin: 4px;
+  margin: 2px;
   box-shadow:
     inset 0 0 60px rgba(0, 255, 0, 0.03),
     0 0 30px rgba(0, 0, 0, 0.5);
   position: relative;
+  min-height: 0;   /* allow terminal to shrink within flex layout */
+  overflow: hidden; /* prevent xterm from overflowing container */
 }
 
 /* Subtle scanline overlay for CRT feel */
@@ -533,14 +540,15 @@ textarea.pmvpn-input {
    ══════════════════════════════════════════════════════ */
 
 .pmvpn-log {
-  padding: 8px 16px;
+  padding: 6px 16px;
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--muted-foreground);
-  max-height: 120px;
+  max-height: 80px;
   overflow-y: auto;
   border-top: 1px solid var(--border);
   background: var(--sidebar);
+  flex-shrink: 0;    /* don't steal space from main content */
 }
 
 .pmvpn-log-entry { padding: 1px 0; white-space: pre-wrap; word-break: break-all; }
@@ -563,6 +571,7 @@ textarea.pmvpn-input {
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   color: var(--muted-foreground);
+  flex-shrink: 0;  /* never compress status bar */
 }
 
 .pmvpn-status-dot {
@@ -616,6 +625,7 @@ textarea.pmvpn-input {
   background: var(--card);
   border-bottom: 1px solid var(--border);
   padding: 0 4px;
+  flex-shrink: 0;  /* tabs bar always visible, never compressed */
 }
 
 .pmvpn-tab {
@@ -646,6 +656,7 @@ textarea.pmvpn-input {
   flex: 1;
   overflow-y: auto;
   background: var(--background);
+  min-height: 0;  /* allow shrinking within flex parent */
 }
 
 .pmvpn-files {
@@ -743,6 +754,7 @@ textarea.pmvpn-input {
   overflow-y: auto;
   background: var(--background);
   padding: 16px;
+  min-height: 0;  /* allow shrinking within flex parent */
 }
 
 .pmvpn-share-panel { max-width: 600px; margin: 0 auto; }
@@ -828,6 +840,42 @@ textarea.pmvpn-input {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ══════════════════════════════════════════════════════
+   RESPONSIVE — prevent overlap at smaller viewports
+   ══════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .pmvpn-sidebar {
+    width: 220px;
+    min-width: 220px;
+  }
+  .pmvpn-file-date { display: none; }  /* hide date column on narrow screens */
+  .pmvpn-log { max-height: 60px; }
+}
+
+@media (max-width: 700px) {
+  .pmvpn-sidebar {
+    width: 180px;
+    min-width: 180px;
+  }
+  .pmvpn-file-size { display: none; }  /* hide size column too */
+  .pmvpn-header { padding: 8px 12px; }
+  .pmvpn-log { max-height: 40px; padding: 4px 12px; }
+  .pmvpn-status { padding: 0 12px; font-size: 10px; }
+}
+
+@media (max-width: 520px) {
+  .pmvpn-body { flex-direction: column; }
+  .pmvpn-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .pmvpn-log { max-height: 30px; }
+}
 `;
 
 export function injectStyles(): void {
