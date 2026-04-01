@@ -2,6 +2,7 @@
 // MIT License
 //
 // Boots SSH servers on 8 ports with wallet-based authentication.
+// Enhanced with modular cloud provider integration.
 // Keys are identity. Verification replaces trust.
 
 import { loadOrGenerateHostKey } from './utils/hostkey.js';
@@ -12,6 +13,8 @@ import { createWsBridge } from './ws/bridge.js';
 import { BIND_HOST, portFor, PORT_OFFSET, PORT_NAMES } from './config/ports.js';
 import { logger } from './utils/logger.js';
 import { PROTOCOL_VERSION } from './shared.js';
+import ModuleRegistry from '../../modules/registry.js';
+import { createProviderGateway } from '../../modules/core/provider-gateway.js';
 
 async function main(): Promise<void> {
   logger.info({ version: PROTOCOL_VERSION }, 'PMVPN server starting');
@@ -25,6 +28,18 @@ async function main(): Promise<void> {
     logger.warn('no wallet mappings loaded — set WALLET_USER_MAP or create ~/.pmvpn/wallets.json');
   } else {
     logger.info({ count: walletMap.size }, 'wallet mappings loaded');
+  }
+
+  // Initialize module registry
+  const moduleRegistry = new ModuleRegistry();
+  logger.info('Module registry initialized');
+
+  // Load core modules (cloud providers will be loaded later)
+  try {
+    // Core modules would be loaded here when available
+    logger.info('Core modules loaded (placeholder - modules to be implemented)');
+  } catch (error) {
+    logger.warn({ error: error.message }, 'Failed to load some modules');
   }
 
   // --- SSH ports ---
@@ -65,10 +80,10 @@ async function main(): Promise<void> {
     logger.info({ port: portFor(PORT_OFFSET.FILE_SYNC), service: PORT_NAMES[5] }, 'listening');
   });
 
-  // Port +6: Claude AI (SSH — shell role, Claude proxy in Phase 4)
-  const claudeServer = createSSHServer(hostKey, walletMap, 'shell');
-  claudeServer.listen(portFor(PORT_OFFSET.CLAUDE_AI), BIND_HOST, () => {
-    logger.info({ port: portFor(PORT_OFFSET.CLAUDE_AI), service: PORT_NAMES[6] }, 'listening');
+  // Port +6: Provider Gateway (HTTP — cloud provider coordination)
+  const providerGateway = createProviderGateway(moduleRegistry, walletMap);
+  providerGateway.listen(portFor(PORT_OFFSET.CLAUDE_AI), BIND_HOST, () => {
+    logger.info({ port: portFor(PORT_OFFSET.CLAUDE_AI), service: 'Provider Gateway' }, 'listening');
   });
 
   // Port +7: Admin API (HTTP)
@@ -86,7 +101,7 @@ async function main(): Promise<void> {
   logger.info(`  Challenge API:  ${BIND_HOST}:${portFor(PORT_OFFSET.CHALLENGE)}`);
   logger.info(`  WS Bridge:      ${BIND_HOST}:${portFor(PORT_OFFSET.TUNNEL)}`);
   logger.info(`  File Sync:      ${BIND_HOST}:${portFor(PORT_OFFSET.FILE_SYNC)}`);
-  logger.info(`  Claude AI:      ${BIND_HOST}:${portFor(PORT_OFFSET.CLAUDE_AI)}`);
+  logger.info(`  Provider Gateway: ${BIND_HOST}:${portFor(PORT_OFFSET.CLAUDE_AI)}`);
   logger.info(`  Admin:          ${BIND_HOST}:${portFor(PORT_OFFSET.ADMIN)}`);
   logger.info('─'.repeat(50));
 
@@ -99,7 +114,7 @@ async function main(): Promise<void> {
     challengeServer.close();
     wsBridge.close();
     syncServer.close();
-    claudeServer.close();
+    providerGateway.close();
     adminServer.close();
     process.exit(0);
   };

@@ -17,6 +17,7 @@ import { createFileBrowser } from './files';
 import { bootstrapServer, deploySSHKey } from './bootstrap';
 import { exportProfiles, importProfiles } from './hostkeys';
 import { createSharePanel } from './share';
+import { createDappDiagnostics } from './dapp-diagnostics';
 injectStyles();
 
 interface Connection {
@@ -262,12 +263,22 @@ export function createApp(): HTMLElement {
 
   toolsSection.append(bootstrapBtn, deployKeyBtn, exportBtn, importBtn);
 
+  // ── dApp Diagnostics Section — privilege-gated fleet view ──
+  const dappDiag = createDappDiagnostics(
+    getAddress,
+    () => {
+      // Return session signature proof from auth state
+      return isConnected() ? 'verified' : null;
+    },
+    log
+  );
+
   // Sidebar: only essential controls (wallet + connections)
   sidebar.append(walletSection, connSection);
 
   // Detail sections go in the expandable footer
   const detailSections = mk('div', 'pmvpn-footer-details');
-  detailSections.append(payloadSection, diagSection, toolsSection);
+  detailSections.append(payloadSection, diagSection, dappDiag.element, toolsSection);
 
   // ── Main: minimal prompt (functionality first, branding in footer) ──
   const placeholder = mk('div', 'pmvpn-placeholder', `
@@ -619,6 +630,9 @@ export function createApp(): HTMLElement {
       addrDisplay.textContent = address.slice(0, 6) + '...' + address.slice(-4);
       logoutBtn.style.display = '';
       log(`authenticated ${address.slice(0,10)}...`, 'success');
+
+      // Trigger dApp privilege verification after wallet connect
+      dappDiag.refresh().catch(() => {});
     } catch (e: any) {
       metamaskBtn.disabled = false;
       metamaskBtn.innerHTML = '🦊 Connect MetaMask';

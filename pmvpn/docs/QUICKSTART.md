@@ -20,25 +20,38 @@ pmVPN is a remote access tool that uses your cryptocurrency wallet as your login
 
 ### Step 2: Start the Server
 
-On the machine you want to access remotely:
+**Option A — Use the live Hostinger VPS** (already deployed):
+
+The server is running at `168.231.126.58` with 12 ports active (core 2200-2207, fleet 2600-2603). Skip to Step 3.
+
+**Option B — Deploy your own:**
 
 ```bash
 git clone https://github.com/poormanvpn/pmVPN.git
 cd pmVPN/pmvpn/server
 pnpm install
-export WALLET_USER_MAP="0xYourWalletAddress:yourusername"
 pnpm run dev
 ```
 
-The server starts 8 ports (default 2200-2207). Your wallet address maps to a Linux username.
+The server starts 8 core ports (default 2200-2207). Any wallet that signs in gets access.
+
+See [GUIDE-HOSTINGER-VPS.md](GUIDE-HOSTINGER-VPS.md) for full VPS deployment.
 
 ### Step 3: Open the Client
 
-**On the same machine:** Open `http://localhost:1420/`
+```bash
+cd pmvpn/client
+pnpm install   # first time only
+pnpm run dev   # starts at http://localhost:1420
+```
 
-**From your phone or another computer:** Open `http://<server-ip>:1420/`
+1. Open `http://localhost:1420/`
+2. Click **[+] Add Connection** in the sidebar
+3. Enter: Name `Hostinger VPS`, Host `168.231.126.58`, Port `2200`
+4. Click **Connect MetaMask** → sign the login challenge
+5. Click the connection → terminal opens
 
-Click **Connect MetaMask** (desktop) or **Open MetaMask App** (mobile). Sign the login challenge. You're in.
+Your wallet is your identity. Logout leaves no trace except your public receive address.
 
 ---
 
@@ -133,6 +146,21 @@ pmVPN is a modular platform. Each module can be used independently or composed t
 | **Citadel** | Blockchain-permanent rooms, token-gated access, distributed social networking | Designed |
 | **crypto-ssh** | Bidirectional key derivation between SSH keys and crypto wallets (HKDF, BIP-32) | Library |
 | **Remote Control** | Claude AI server administration from phone via claude.ai/code | Service |
+| **Hostinger MCP** | VPS management via Hostinger API — provision, monitor, fleet | Live |
+| **Fleet Coordination** | Multi-server management on ports 2600-2603 | Live |
+| **dApp Diagnostics** | Privilege-gated fleet/provider status in the client UI | Live |
+
+## Documentation
+
+| Guide | What It Covers |
+|-------|---------------|
+| [QUICKSTART.md](QUICKSTART.md) | This guide — zero to connected in 3 minutes |
+| [GUIDE-HOSTINGER-VPS.md](GUIDE-HOSTINGER-VPS.md) | Deploy pmVPN on a Hostinger VPS |
+| [HOSTINGER-MCP-SETUP.md](HOSTINGER-MCP-SETUP.md) | Configure Hostinger API MCP for VPS management |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Production deployment, systemd, Docker |
+| [PROTOCOL.md](PROTOCOL.md) | PM Protocol wire format specification |
+| [GUIDE-PHONE-TO-LAPTOP.md](GUIDE-PHONE-TO-LAPTOP.md) | Connect your phone to your laptop |
+| [GUIDE-LAPTOP-TO-DESKTOP.md](GUIDE-LAPTOP-TO-DESKTOP.md) | Connect laptop to desktop over LAN |
 
 ### Module Composition
 
@@ -179,6 +207,9 @@ The mobile UI is optimized:
 
 | Want to... | Read... |
 |-----------|---------|
+| Connect phone to laptop (LAN) | [GUIDE-PHONE-TO-LAPTOP.md](GUIDE-PHONE-TO-LAPTOP.md) |
+| Deploy on a Hostinger VPS | [GUIDE-HOSTINGER-VPS.md](GUIDE-HOSTINGER-VPS.md) |
+| Connect laptop to desktop (no root) | [GUIDE-LAPTOP-TO-DESKTOP.md](GUIDE-LAPTOP-TO-DESKTOP.md) |
 | Deploy to production | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Understand the tunnel protocol | [PROTOCOL.md](PROTOCOL.md) |
 | Bootstrap remote servers | [BOOTSTRAP.md](BOOTSTRAP.md) |

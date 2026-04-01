@@ -966,6 +966,187 @@ textarea.pmvpn-input {
 }
 
 /* ══════════════════════════════════════════════════════
+   DAPP DIAGNOSTICS — privilege-gated fleet view
+   ══════════════════════════════════════════════════════ */
+
+.dapp-diagnostics {
+  position: relative;
+}
+
+.dapp-diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dapp-diag-header h3 {
+  margin: 0;
+}
+
+.dapp-privilege-badge {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  transition: all var(--transition-normal);
+}
+
+.dapp-privilege-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.dapp-priv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 1px 0;
+}
+
+.dapp-priv-label {
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dapp-priv-value {
+  color: var(--foreground);
+}
+
+.dapp-priv-rights .dapp-priv-value {
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* Gate overlay */
+.dapp-gate {
+  text-align: center;
+  padding: 16px 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+}
+
+.dapp-gate-icon {
+  font-size: 28px;
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+  opacity: 0.5;
+}
+
+.dapp-gate-text {
+  font-size: 12px;
+  color: var(--foreground);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.dapp-gate-sub {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* Controls */
+.dapp-controls {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.dapp-verify-btn {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+  font-weight: 700 !important;
+}
+
+.dapp-verify-btn:hover {
+  opacity: 0.85;
+}
+
+.dapp-refresh-btn {
+  flex: 1;
+}
+
+/* Response grid */
+.dapp-response-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dapp-response-card {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.dapp-response-card:hover {
+  border-color: var(--primary);
+}
+
+.dapp-response-card.dapp-locked {
+  opacity: 0.45;
+}
+
+.dapp-response-card.dapp-locked:hover {
+  border-color: var(--border);
+}
+
+.dapp-response-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
+
+.dapp-response-label {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--primary);
+}
+
+.dapp-response-status {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.dapp-response-body {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  line-height: 1.5;
+  background: none;
+}
+
+/* ══════════════════════════════════════════════════════
    SCROLLBAR
    ══════════════════════════════════════════════════════ */
 
