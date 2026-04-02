@@ -89,6 +89,11 @@ Dynamic module loading via `pmvpn/modules/registry.ts`:
 - **Hostinger** (`modules/hostinger/`): VPS management via hostinger-api-mcp (5 commands)
 - **Fleet** (`modules/fleet/`): Multi-server coordination (7 commands)
 - **Core** (`modules/core/`): Cloud provider abstraction, Provider Gateway
+- **BANKON Vault** (`modules/vault/`): Wallet-signature-gated credential storage (9 commands, GPLv3)
+  - 4 modes: signature, threshold (2/3), passphrase (network=0), combined
+  - Pure Node.js crypto — zero npm dependencies
+  - AES-256-GCM + HKDF-SHA512 — post-quantum symmetric layer
+  - (c) BANKON · cypherpunk2048 standard · bankon.pythai.net
 
 ### Live Deployment
 
@@ -199,6 +204,8 @@ See `pmvpn/docs/PROTOCOL.md` for complete wire format specification.
 - **`SIGNATURE_SECURITY_ANALYSIS.md`**: Security limitations and hardening
 - **`HANDHELD_VPS_COORDINATION.md`**: Mobile-first fleet coordination design
 - **`MODULAR_CLAUDE_EXPANSION.md`**: Extensible module system for remote control
+- **`pmvpn/modules/vault/README.md`**: BANKON Vault API, modes, crypto
+- **`pmvpn/modules/vault/ARCHITECTURE.md`**: Rust defense, post-quantum analysis, crate selection
 
 ## Bootstrap and Remote Control
 

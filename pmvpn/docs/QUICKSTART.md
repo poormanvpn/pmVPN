@@ -149,6 +149,7 @@ pmVPN is a modular platform. Each module can be used independently or composed t
 | **Hostinger MCP** | VPS management via Hostinger API — provision, monitor, fleet | Live |
 | **Fleet Coordination** | Multi-server management on ports 2600-2603 | Live |
 | **dApp Diagnostics** | Privilege-gated fleet/provider status in the client UI | Live |
+| **BANKON Vault** | Wallet-signature-gated credential storage (GPLv3, pure Node.js crypto) | Live |
 
 ## Documentation
 
@@ -170,6 +171,7 @@ All modules share one identity: your wallet signature. A wallet that authenticat
   Your Wallet (MetaMask)
        │
        ├── pmVPN: sign challenge → SSH terminal access
+       ├── BANKON Vault: sign → derive key → encrypted credentials
        ├── blocktalk: sign messages → room participation
        ├── Citadel: hold token → on-chain room access
        └── crypto-ssh: derive keys → SSH public key auth
