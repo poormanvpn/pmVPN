@@ -102,15 +102,15 @@ export function handleConnection(
         writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
       } catch {}
 
-      // Create Linux user if running as root (VPS deployment)
+      // Create Linux user with quota and hardening
       try {
-        execSync(`id ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
-        logger.info({ user: username }, 'Linux user created');
+        // Use pmvpn-create-user.sh if available (sets quota + restrictions)
+        execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
+        logger.info({ user: username }, 'Linux user created with quota');
       } catch (err) {
-        // Not root or user already exists — create home dir manually
         const homeDir = join(BASE_HOME, username);
         if (!existsSync(homeDir)) {
-          mkdirSync(homeDir, { recursive: true });
+          mkdirSync(homeDir, { recursive: true, mode: 0o700 });
         }
       }
     }

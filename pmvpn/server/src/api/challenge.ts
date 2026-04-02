@@ -222,6 +222,27 @@ export function createChallengeServer(walletMap: WalletMap) {
             kernelWarnings: dmesgErrors,
             recentLogins: lastLogins,
           },
+          sysadmin: {
+            // htop-style: top processes by CPU
+            topCPU: run("ps aux --no-headers --sort=-%cpu | head -10 | awk '{printf \"%s %s%%cpu %s%%mem %s\\n\", $1, $3, $4, $11}'")
+              .split('\n').filter(Boolean),
+            // ls -al style: root home listing
+            rootListing: run('ls -al /opt/pmvpn/ 2>/dev/null | head -15').split('\n').filter(Boolean),
+            // df -h: all filesystems
+            diskUsage: run('df -h 2>/dev/null').split('\n').filter(Boolean),
+            // netstat/ss: listening ports
+            listeningPorts: run('ss -tlnp 2>/dev/null | grep LISTEN').split('\n').filter(Boolean),
+            // ifconfig/ip: network config
+            networkConfig: run('ip -br addr 2>/dev/null').split('\n').filter(Boolean),
+            // active TCP connections (count by state)
+            tcpStates: run('ss -tan 2>/dev/null | tail -n +2 | awk "{print \\$1}" | sort | uniq -c | sort -rn').split('\n').filter(Boolean),
+            // quota status for wallet users
+            quotaReport: run('repquota / 2>/dev/null | grep -E "^w|^pmvpn|Block limits"').split('\n').filter(Boolean),
+            // system uptime and load
+            uptime: run('uptime'),
+            // memory detail
+            memInfo: run('free -h'),
+          },
           wallets: {
             registered: walletMap.size,
             admins: Array.from(walletMap.entries()).filter(([, e]) => e.role === 'admin').length,
