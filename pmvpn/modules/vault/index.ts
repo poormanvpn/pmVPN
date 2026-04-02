@@ -1,12 +1,13 @@
-// Vault Module — credential vault for pmVPN module system
-// MIT License
-//
-// Registers vault commands with the module registry.
-// Vault access is gated by wallet signature — the signature
-// both proves identity AND derives the encryption key.
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  BANKON Vault Module — pmVPN module system integration         ║
+// ║  (c) BANKON — All Rights Reserved                              ║
+// ║  License: GPL-3.0 (client-side, cypherpunk2048 standard)       ║
+// ║                                                                ║
+// ║  github.com/cypherpunk2048 · bankon.pythai.net                 ║
+// ╚══════════════════════════════════════════════════════════════════╝
 
 import { logger } from '../../server/src/utils/logger.js';
-import { CredentialVault, TombManager } from './credential-vault.js';
+import { BankonVault } from './credential-vault.js';
 import type {
   ClaudeModule,
   CommandDefinition,
@@ -14,56 +15,58 @@ import type {
 } from '../registry.js';
 
 export class VaultModule implements ClaudeModule {
-  name = 'credential-vault';
+  name = 'bankon-vault';
   version = '1.0.0';
-  description = 'Wallet-signature-gated encrypted credential storage';
-  author = 'pmVPN / BANKON';
+  description = 'BANKON Vault — wallet-signature-gated credential storage (GPLv3)';
+  author = '(c) BANKON / cypherpunk2048';
   dependencies: string[] = [];
 
-  private vault = new CredentialVault();
-  private tomb = new TombManager();
+  private vault = new BankonVault();
 
   async onLoad(): Promise<void> {
-    const tombAvailable = await this.tomb.isAvailable();
-    logger.info(
-      { tomb: tombAvailable },
-      `Vault module loaded (GNU Tomb ${tombAvailable ? 'available' : 'not found'})`
-    );
+    logger.info('BANKON Vault module loaded — wallet is identity, signature proves ownership');
   }
 
   async onUnload(): Promise<void> {
     this.vault.lock();
-    logger.info('Vault module unloaded — keys zeroized');
+    logger.info('BANKON Vault locked — all keys zeroized');
+  }
+
+  /**
+   * Get the vault instance for programmatic access from other modules.
+   */
+  getVault(): BankonVault {
+    return this.vault;
   }
 
   commands: CommandDefinition[] = [
     {
       name: 'vault-status',
       aliases: ['vs'],
-      description: 'Show vault status and metadata',
+      description: 'Show BANKON vault status',
       usage: 'vault-status',
       examples: ['vault-status'],
       parameters: [],
       permissions: [{ resource: 'read:fleet' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
-        const info = this.vault.getInfo();
-        const tombOpen = await this.tomb.isOpen();
-        const tombAvailable = await this.tomb.isAvailable();
-
+      handler: async (): Promise<CommandResult> => {
+        const info = this.vault.info();
         return {
           success: true,
-          data: { vault: info, tomb: { available: tombAvailable, open: tombOpen } },
+          data: info,
           display: [
-            '🔐 Credential Vault Status',
+            '╔══ BANKON Vault ══╗',
             '',
-            `   Vault:      ${info ? 'unlocked' : 'locked'}`,
-            info ? `   Entries:    ${info.entries}` : '',
-            info ? `   Encryption: ${info.encryption}` : '',
-            info ? `   Threshold:  ${info.thresholdMode}` : '',
+            `   Status:     ${info?.locked === false ? '🔓 unlocked' : '🔒 locked'}`,
+            `   Mode:       ${info?.mode || 'signature'}`,
+            `   Entries:    ${info?.entries || 0}`,
+            `   Cipher:     ${info?.cipher || 'aes-256-gcm'}`,
+            `   KDF:        ${info?.kdf || 'hkdf-sha512'}`,
+            `   Version:    ${info?.version || '1.0.0'}`,
             '',
-            `   GNU Tomb:   ${tombAvailable ? (tombOpen ? 'open' : 'closed') : 'not installed'}`,
-          ].filter(Boolean).join('\n'),
+            '   (c) BANKON — cypherpunk2048 standard',
+            '╚══════════════════╝',
+          ].join('\n'),
           nextActions: ['vault-unlock', 'vault-list'],
         };
       },
@@ -72,27 +75,30 @@ export class VaultModule implements ClaudeModule {
     {
       name: 'vault-unlock',
       aliases: ['vu'],
-      description: 'Unlock vault with wallet signature',
-      usage: 'vault-unlock',
-      examples: ['vault-unlock'],
-      parameters: [],
+      description: 'Unlock vault with wallet signature (mode: signature|passphrase|combined)',
+      usage: 'vault-unlock [--mode <mode>]',
+      examples: ['vault-unlock', 'vault-unlock --mode combined'],
+      parameters: [
+        { name: 'mode', type: 'string', required: false, description: 'Unlock mode: signature, passphrase, combined', default: 'signature' },
+      ],
       permissions: [{ resource: 'read:fleet' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
-        // In a real flow, the signature comes from the authenticated session
-        // For now, return instructions
+      handler: async (params): Promise<CommandResult> => {
+        const mode = params.mode || 'signature';
         return {
           success: true,
-          message: 'Vault unlock requires wallet signature',
           display: [
-            '🔓 Vault Unlock',
+            '🔐 BANKON Vault Unlock',
             '',
-            '   The vault unlocks automatically when you authenticate.',
-            '   Your signature derives the encryption key via HKDF-SHA512.',
-            '   The key exists only in memory — never stored.',
+            `   Mode: ${mode}`,
             '',
-            '   Threshold mode: wallet + device key (any 2 of 3)',
-            '   Post-quantum: AES-256-GCM + HKDF-SHA512',
+            '   SIGNATURE  — wallet signs challenge, signature derives key',
+            '   THRESHOLD  — 2 of 3 shares: wallet + device + recovery',
+            '   PASSPHRASE — PBKDF2 from passphrase (offline/network=0)',
+            '   COMBINED   — signature + passphrase (maximum security)',
+            '',
+            '   The vault key exists only in memory.',
+            '   On lock/logout, all keys are zeroized.',
           ].join('\n'),
           nextActions: ['vault-store', 'vault-list'],
         };
@@ -101,31 +107,31 @@ export class VaultModule implements ClaudeModule {
 
     {
       name: 'vault-store',
-      aliases: ['vstore'],
-      description: 'Store a credential in the vault',
+      aliases: ['vstore', 'vput'],
+      description: 'Store a credential (AES-256-GCM encrypted)',
       usage: 'vault-store --id <name> --value <secret>',
-      examples: ['vault-store --id hostinger-api --value sk_live_xxx'],
+      examples: ['vault-store --id api-key --value sk_live_xxx'],
       parameters: [
-        { name: 'id', type: 'string', required: true, description: 'Credential identifier' },
-        { name: 'value', type: 'string', required: true, description: 'Secret value to store' },
-        { name: 'context', type: 'string', required: false, description: 'Derivation context', default: 'default' },
+        { name: 'id', type: 'string', required: true, description: 'Credential name' },
+        { name: 'value', type: 'string', required: true, description: 'Secret value' },
+        { name: 'context', type: 'string', required: false, description: 'Domain context', default: 'default' },
       ],
       permissions: [{ resource: 'manage:providers' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
+      handler: async (params): Promise<CommandResult> => {
         if (!this.vault.isUnlocked()) {
-          return { success: false, message: 'Vault is locked — authenticate first' };
+          return { success: false, message: 'Vault locked — unlock with wallet signature first' };
         }
         try {
           this.vault.store(params.id, params.value, params.context || 'default');
           return {
             success: true,
-            message: `Credential "${params.id}" stored`,
-            display: `🔐 Stored: ${params.id} (AES-256-GCM encrypted)`,
+            message: `Stored: ${params.id}`,
+            display: `🔐 ${params.id} → AES-256-GCM (HKDF-SHA512 per-entry key)`,
             nextActions: ['vault-list'],
           };
-        } catch (error: any) {
-          return { success: false, message: error.message };
+        } catch (e: any) {
+          return { success: false, message: e.message };
         }
       },
     },
@@ -133,73 +139,70 @@ export class VaultModule implements ClaudeModule {
     {
       name: 'vault-get',
       aliases: ['vget'],
-      description: 'Retrieve a credential from the vault',
+      description: 'Retrieve a credential',
       usage: 'vault-get --id <name>',
-      examples: ['vault-get --id hostinger-api'],
+      examples: ['vault-get --id api-key'],
       parameters: [
-        { name: 'id', type: 'string', required: true, description: 'Credential identifier' },
+        { name: 'id', type: 'string', required: true, description: 'Credential name' },
       ],
       permissions: [{ resource: 'manage:providers' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
+      handler: async (params): Promise<CommandResult> => {
         if (!this.vault.isUnlocked()) {
-          return { success: false, message: 'Vault is locked — authenticate first' };
+          return { success: false, message: 'Vault locked' };
         }
         const value = this.vault.retrieve(params.id);
-        if (value === null) {
-          return { success: false, message: `Credential "${params.id}" not found` };
-        }
+        if (!value) return { success: false, message: `Not found: ${params.id}` };
         return {
           success: true,
           data: { id: params.id, value },
-          display: `🔓 ${params.id}: ${value.slice(0, 8)}${'•'.repeat(Math.max(0, value.length - 8))}`,
+          display: `🔓 ${params.id}: ${value.slice(0, 6)}${'•'.repeat(Math.max(0, value.length - 6))}`,
         };
       },
     },
 
     {
       name: 'vault-list',
-      aliases: ['vlist', 'vls'],
-      description: 'List credentials in the vault',
+      aliases: ['vls', 'vlist'],
+      description: 'List credential IDs (no secrets)',
       usage: 'vault-list',
       examples: ['vault-list'],
       parameters: [],
       permissions: [{ resource: 'read:fleet' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
+      handler: async (): Promise<CommandResult> => {
         if (!this.vault.isUnlocked()) {
-          return { success: false, message: 'Vault is locked — authenticate first' };
+          return { success: false, message: 'Vault locked' };
         }
         const entries = this.vault.list();
-        const display = entries.length === 0
-          ? '🔐 Vault is empty'
-          : ['🔐 Vault Entries:', '', ...entries.map(e =>
-              `   ${e.id} (${e.context}) — accessed ${e.accessCount}x`
-            )].join('\n');
-
-        return { success: true, data: { entries }, display };
+        return {
+          success: true,
+          data: { entries },
+          display: entries.length === 0
+            ? '🔐 Vault empty'
+            : ['🔐 Vault:', '', ...entries.map(e =>
+                `   ${e.id} [${e.context}] — ${e.accessCount}x accessed`
+              )].join('\n'),
+        };
       },
     },
 
     {
       name: 'vault-delete',
       aliases: ['vdel', 'vrm'],
-      description: 'Delete a credential from the vault',
+      description: 'Delete a credential',
       usage: 'vault-delete --id <name>',
-      examples: ['vault-delete --id old-api-key'],
+      examples: ['vault-delete --id old-key'],
       parameters: [
         { name: 'id', type: 'string', required: true, description: 'Credential to delete' },
       ],
       permissions: [{ resource: 'terminate:servers' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
-        if (!this.vault.isUnlocked()) {
-          return { success: false, message: 'Vault is locked' };
-        }
-        const deleted = this.vault.delete(params.id);
+      handler: async (params): Promise<CommandResult> => {
+        if (!this.vault.isUnlocked()) return { success: false, message: 'Vault locked' };
         return {
-          success: deleted,
-          message: deleted ? `Deleted: ${params.id}` : `Not found: ${params.id}`,
+          success: this.vault.delete(params.id),
+          message: this.vault.delete(params.id) ? `Deleted: ${params.id}` : `Not found: ${params.id}`,
         };
       },
     },
@@ -207,18 +210,72 @@ export class VaultModule implements ClaudeModule {
     {
       name: 'vault-lock',
       aliases: ['vlock'],
-      description: 'Lock the vault — zeroize keys from memory',
+      description: 'Lock vault — zeroize all keys from memory',
       usage: 'vault-lock',
       examples: ['vault-lock'],
       parameters: [],
       permissions: [{ resource: 'read:fleet' }],
 
-      handler: async (params, context): Promise<CommandResult> => {
+      handler: async (): Promise<CommandResult> => {
         this.vault.lock();
         return {
           success: true,
-          message: 'Vault locked — keys zeroized from memory',
-          display: '🔒 Vault locked. All encryption keys cleared.',
+          display: '🔒 BANKON Vault locked — all encryption keys zeroized from memory',
+        };
+      },
+    },
+
+    {
+      name: 'vault-export',
+      aliases: ['vexport'],
+      description: 'Export vault as encrypted backup blob',
+      usage: 'vault-export',
+      examples: ['vault-export'],
+      parameters: [],
+      permissions: [{ resource: 'manage:providers' }],
+
+      handler: async (): Promise<CommandResult> => {
+        if (!this.vault.isUnlocked()) return { success: false, message: 'Vault locked' };
+        const blob = this.vault.export();
+        return {
+          success: !!blob,
+          data: { blob },
+          display: blob ? `📦 Exported (${blob.length} bytes, AES-256-GCM encrypted)` : 'Export failed',
+        };
+      },
+    },
+
+    {
+      name: 'vault-threshold',
+      aliases: ['vthreshold', 'v23'],
+      description: 'Create 2-of-3 threshold shares for vault key recovery',
+      usage: 'vault-threshold',
+      examples: ['vault-threshold'],
+      parameters: [],
+      permissions: [{ resource: 'manage:providers' }],
+
+      handler: async (): Promise<CommandResult> => {
+        if (!this.vault.isUnlocked()) return { success: false, message: 'Vault locked' };
+        const shares = this.vault.createThresholdShares();
+        if (!shares) return { success: false, message: 'Failed to create shares' };
+        return {
+          success: true,
+          data: {
+            wallet: `${shares.wallet.slice(0, 8)}...`,
+            device: 'stored locally (encrypted)',
+            recovery: `${shares.recovery.slice(0, 8)}... (WRITE THIS DOWN)`,
+          },
+          display: [
+            '🔐 2-of-3 Threshold Shares Created',
+            '',
+            '   Share 1 (wallet):   derived from signature each time',
+            '   Share 2 (device):   stored encrypted on this device',
+            `   Share 3 (recovery): ${shares.recovery.slice(0, 12)}...`,
+            '',
+            '   ⚠️  WRITE DOWN THE RECOVERY SHARE',
+            '   Any 2 shares unlock the vault.',
+            '   Lost 2 shares = vault unrecoverable.',
+          ].join('\n'),
         };
       },
     },

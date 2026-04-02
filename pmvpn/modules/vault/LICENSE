@@ -1,0 +1,14 @@
+BANKON Vault
+(c) BANKON — All Rights Reserved
+
+This software is licensed under the GNU General Public License v3.0 (GPL-3.0).
+
+This is client-side software that runs on the client for the client.
+cypherpunk2048 standard — github.com/cypherpunk2048
+
+You may copy, distribute and modify the software as long as you track
+changes/dates in source files. Any modifications to or software including
+(via compiler) GPL-licensed code must also be made available under the GPL
+along with build & install instructions.
+
+Full license text: https://www.gnu.org/licenses/gpl-3.0.en.html
