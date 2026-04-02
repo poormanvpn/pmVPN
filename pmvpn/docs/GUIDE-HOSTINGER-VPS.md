@@ -197,6 +197,27 @@ Phone/Browser                    VPS (168.231.126.58)
 
 No passwords. No SSH keys to manage. Your wallet IS your key.
 
+**Auto-registration**: First-time wallets are automatically registered as Linux user `w` + first 8 hex chars of address. Home directory created at `/home/w{addr}/`. Persisted to `~/.pmvpn/wallets.json` — subsequent logins are instant.
+
+---
+
+## Diagnostics & Session Monitoring
+
+```bash
+# Public health check (anyone)
+curl http://168.231.126.58:2203/diagnostics
+# → { health: "ok", cpu: { loadPercent: 9 }, memory: { percent: 10 } }
+
+# Authenticated view (your own sessions)
+curl -H "X-Wallet: 0xYourAddress" http://168.231.126.58:2203/diagnostics
+# → adds mySessions: [{ type: "websocket", clientIP: "...", durationSeconds: 45 }]
+
+# Admin forensic view (full system telemetry)
+curl -H "X-Wallet: 0xAdminAddress" http://168.231.126.58:2203/diagnostics
+# → CPU model, kernel, hostname, network, traffic, processes,
+#   firewall, failed SSH, all active sessions, login history
+```
+
 ---
 
 ## Hostinger MCP Integration

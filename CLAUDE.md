@@ -102,12 +102,27 @@ VPS at `168.231.126.58` — 12 ports active, Hostinger MCP loaded, fleet coordin
 ### Key Server Modules
 
 - **`auth/`**: Wallet signature verification via viem, nonce management
-- **`ssh/`**: SSH server implementation using ssh2 library
+- **`ssh/`**: SSH server implementation using ssh2 library, auto-registration
 - **`tunnel/`**: PM Protocol binary multiplexing (TCP/UDP/DNS)
-- **`ws/`**: WebSocket bridge for client communication
-- **`api/`**: HTTP endpoints for authentication and administration
+- **`ws/`**: WebSocket bridge for client communication, session tracking
+- **`api/`**: HTTP endpoints — challenge, status, tiered diagnostics
 - **`config/`**: Server configuration and wallet-to-user mapping
-- **`utils/`**: Shared utilities and helpers
+- **`utils/`**: Logger, host key, active session registry
+
+### Auto-Registration
+
+Any wallet that signs in gets access automatically:
+- Username: `w` + first 8 hex chars of address (e.g., `w10f7ee22`)
+- Linux user created via `useradd` (if running as root)
+- Persisted to `~/.pmvpn/wallets.json` — subsequent logins instant
+- Home directory at `/home/w{address}/` — persistent across sessions
+
+### Diagnostics API (`GET /diagnostics`)
+
+Three tiers, gated by `X-Wallet` header:
+- **Public**: health percentages (cpu, mem, disk, uptime)
+- **Authenticated** (any wallet): health + own active sessions (`mySessions`)
+- **Admin** (admin wallet): full forensic — CPU model, kernel, hostname, network interfaces, traffic, process list, firewall, failed SSH, kernel warnings, login history, all active sessions
 
 ## Authentication Flow
 

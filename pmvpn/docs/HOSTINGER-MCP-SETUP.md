@@ -170,13 +170,13 @@ The MCP tools are exposed through the Provider Gateway HTTP API:
 curl http://localhost:2206/providers
 # → { "providers": [{ "name": "hostinger", "displayName": "Hostinger VPS" }] }
 
-# List available commands
+# List available commands (21 total)
 curl http://localhost:2206/commands
-# → 5 hostinger commands + 7 fleet commands
+# → 5 hostinger + 9 vault + 7 fleet commands
 
 # Server status
 curl http://localhost:2206/status
-# → { "modules": 2, "cloudProviders": 1, ... }
+# → { "modules": 3, "cloudProviders": 1, ... }
 ```
 
 ---
