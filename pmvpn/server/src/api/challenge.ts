@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { homedir, cpus, totalmem, freemem, loadavg, networkInterfaces, release, hostname as osHostname, type as osType, arch } from 'node:os';
 import { createChallenge } from '../auth/challenge.js';
 import { logger } from '../utils/logger.js';
+import { getActiveSessions, getSessionsForWallet, getSessionCounts } from '../utils/sessions.js';
 import { PROTOCOL_VERSION } from '../shared.js';
 import type { WalletMap } from '../config/wallets.js';
 
@@ -138,7 +139,15 @@ export function createChallengeServer(walletMap: WalletMap) {
         const activeWS = parseInt(run('ss -tn state established 2>/dev/null | grep -c ":2204"')) || 0;
         const activeFleet = parseInt(run('ss -tn state established 2>/dev/null | grep -cE ":260[0-3]"')) || 0;
 
-        // Public response: health only, no identifying info
+        // Public response: health only + own sessions if wallet provided
+        const mySessions = reqWallet ? getSessionsForWallet(reqWallet).map(s => ({
+          id: s.id,
+          type: s.type,
+          clientIP: s.clientIP,
+          connectedAt: s.connectedAt,
+          durationSeconds: Math.round((Date.now() - s.connectedAt) / 1000),
+        })) : [];
+
         const publicData = {
           timestamp: Date.now(),
           health: 'ok',
@@ -146,6 +155,7 @@ export function createChallengeServer(walletMap: WalletMap) {
           memory: { percent: Math.round(((totalMem - freeMem) / totalMem) * 100) },
           disk: { percent: dfLine[4] || '0%' },
           uptime: Math.round(process.uptime()),
+          mySessions,
         };
 
         if (!isAdmin) {
@@ -215,6 +225,27 @@ export function createChallengeServer(walletMap: WalletMap) {
           wallets: {
             registered: walletMap.size,
             admins: Array.from(walletMap.entries()).filter(([, e]) => e.role === 'admin').length,
+          },
+          sessions: {
+            active: getActiveSessions().map(s => ({
+              id: s.id,
+              wallet: s.wallet.slice(0, 10) + '...',
+              username: s.username,
+              type: s.type,
+              clientIP: s.clientIP,
+              connectedAt: s.connectedAt,
+              lastActivity: s.lastActivity,
+              durationSeconds: Math.round((Date.now() - s.connectedAt) / 1000),
+            })),
+            counts: getSessionCounts(),
+            // Sessions belonging to the requesting wallet
+            mine: getSessionsForWallet(reqWallet).map(s => ({
+              id: s.id,
+              type: s.type,
+              clientIP: s.clientIP,
+              connectedAt: s.connectedAt,
+              durationSeconds: Math.round((Date.now() - s.connectedAt) / 1000),
+            })),
           },
         });
       } catch (err: any) {

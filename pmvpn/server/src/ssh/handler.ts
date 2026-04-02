@@ -13,6 +13,7 @@ import { consumeChallenge } from '../auth/challenge.js';
 import { spawnShell } from './shell.js';
 import { startTunnelServer } from '../tunnel/server.js';
 import { logger } from '../utils/logger.js';
+import { registerSession, removeSession, touchSession } from '../utils/sessions.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
 
@@ -22,6 +23,7 @@ interface SessionState {
   username: string | null;
   address: string | null;
   authenticated: boolean;
+  sessionId: string | null;
 }
 
 /**
@@ -38,6 +40,7 @@ export function handleConnection(
     username: null,
     address: null,
     authenticated: false,
+    sessionId: null,
   };
 
   const clientLabel = `${clientInfo.ip}:${clientInfo.port}`;
@@ -117,7 +120,11 @@ export function handleConnection(
     session.address = addrLower;
     session.authenticated = true;
 
-    logger.info({ client: clientLabel, user: entry.user, address: addrLower }, 'authenticated');
+    // Register in active session registry
+    const sessionType = portRole === 'shell' ? 'ssh-shell' : portRole === 'sftp' ? 'ssh-sftp' : portRole === 'exec' ? 'ssh-exec' : 'tunnel';
+    session.sessionId = registerSession(addrLower, entry.user, entry.role, sessionType, clientInfo.ip, clientInfo.port);
+
+    logger.info({ client: clientLabel, user: entry.user, address: addrLower, sessionId: session.sessionId }, 'authenticated');
     ctx.accept();
   });
 
@@ -203,6 +210,7 @@ export function handleConnection(
   });
 
   client.on('close', () => {
+    if (session.sessionId) removeSession(session.sessionId);
     logger.info({ client: clientLabel, user: session.username }, 'connection closed');
   });
 

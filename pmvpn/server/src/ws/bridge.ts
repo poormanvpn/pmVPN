@@ -23,6 +23,7 @@ import { consumeChallenge } from '../auth/challenge.js';
 import { sftpLs, sftpGet, sftpPut, sftpMkdir, sftpRm, sftpStat } from '../ssh/sftp.js';
 import { createShare, addFileToShare, getShare, canAccess, listShareFiles, getShareFile, removeShare, listShares, buildInviteMessage } from '../share/manager.js';
 import { logger } from '../utils/logger.js';
+import { registerSession, removeSession, touchSession } from '../utils/sessions.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
 
@@ -148,8 +149,14 @@ export function createWsBridge(walletMap: WalletMap) {
         session = { username: entry.user, homeDir, address: addrLower, shell: null };
         authenticated = true;
 
+        // Track session
+        const wsSessionId = registerSession(addrLower, entry.user, entry.role, 'websocket', clientIp, 0);
+
         logger.info({ client: clientIp, user: entry.user, address: addrLower }, 'ws: authenticated');
         ws.send(JSON.stringify({ type: 'auth', ok: true, user: entry.user, home: '/' }));
+
+        // Deregister on close
+        ws.on('close', () => { removeSession(wsSessionId); });
         return;
       }
 
