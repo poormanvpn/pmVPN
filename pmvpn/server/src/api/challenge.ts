@@ -5,8 +5,9 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, cpus, totalmem, freemem, loadavg, networkInterfaces, release, hostname as osHostname, type as osType, arch } from 'node:os';
 import { createChallenge } from '../auth/challenge.js';
 import { logger } from '../utils/logger.js';
 import { PROTOCOL_VERSION } from '../shared.js';
@@ -90,6 +91,135 @@ export function createChallengeServer(walletMap: WalletMap) {
         uptime: Math.floor((Date.now() - startTime) / 1000),
         wallets: walletMap.size,
       });
+    }
+
+    // GET /diagnostics — system telemetry for admin dashboard
+    // Public: basic health (cpu%, mem%, disk%, uptime)
+    // Admin: full forensic (interfaces, traffic, connections, processes)
+    // Admin auth: X-Wallet header must match an admin in walletMap
+    if (req.method === 'GET' && url.pathname === '/diagnostics') {
+      try {
+        // Check if requester is admin
+        const reqWallet = (req.headers['x-wallet'] as string || '').toLowerCase();
+        const reqEntry = walletMap.get(reqWallet);
+        const isAdmin = reqEntry?.role === 'admin';
+        const run = (cmd: string) => { try { return execSync(cmd, { stdio: 'pipe', timeout: 3000 }).toString().trim(); } catch { return ''; } };
+
+        const cpuInfo = cpus();
+        const totalMem = totalmem();
+        const freeMem = freemem();
+        const load = loadavg();
+
+        // Disk (bytes only, no paths)
+        const dfLine = run('df -B1 / | tail -1').split(/\s+/);
+
+        // Network interfaces (IP only, no MAC — MAC is a fingerprint)
+        const netIfaces: { name: string; address: string; family: string }[] = [];
+        const ifaces = networkInterfaces();
+        for (const [name, addrs] of Object.entries(ifaces)) {
+          if (!addrs) continue;
+          for (const a of addrs) {
+            if (!a.internal) netIfaces.push({ name, address: a.address, family: a.family });
+          }
+        }
+
+        // Traffic counters (bytes rx/tx per interface, no identifying info)
+        const traffic = run('cat /proc/net/dev 2>/dev/null').split('\n').slice(2).map(line => {
+          const p = line.trim().split(/[\s:]+/);
+          if (p[0] === 'lo') return null;
+          return { iface: p[0], rxBytes: parseInt(p[1]) || 0, txBytes: parseInt(p[9]) || 0 };
+        }).filter(Boolean);
+
+        // GPU (safe — just device name)
+        const gpuInfo = run('lspci 2>/dev/null | grep -i "vga\\|3d\\|display"') || 'none';
+
+        // Connection counts (numbers only, no IPs)
+        const activeSSH = parseInt(run('ss -tn state established 2>/dev/null | grep -cE ":220[0-7]"')) || 0;
+        const activeWS = parseInt(run('ss -tn state established 2>/dev/null | grep -c ":2204"')) || 0;
+        const activeFleet = parseInt(run('ss -tn state established 2>/dev/null | grep -cE ":260[0-3]"')) || 0;
+
+        // Public response: health only, no identifying info
+        const publicData = {
+          timestamp: Date.now(),
+          health: 'ok',
+          cpu: { cores: cpuInfo.length, loadPercent: Math.round(load[0] / cpuInfo.length * 100) },
+          memory: { percent: Math.round(((totalMem - freeMem) / totalMem) * 100) },
+          disk: { percent: dfLine[4] || '0%' },
+          uptime: Math.round(process.uptime()),
+        };
+
+        if (!isAdmin) {
+          return sendJSON(res, 200, publicData);
+        }
+
+        // Admin forensic response: full system telemetry
+        // Only returned when X-Wallet header matches an admin wallet
+        const procCount = parseInt(run('ps aux --no-headers | wc -l')) || 0;
+        const topProcs = run("ps aux --no-headers --sort=-%mem | head -8 | awk '{printf \"%s %.1f%%cpu %.1f%%mem\\n\", $11, $3, $4}'")
+          .split('\n').filter(Boolean);
+        const openFiles = parseInt(run('ls /proc/self/fd 2>/dev/null | wc -l')) || 0;
+        const tcpConns = parseInt(run('ss -tn state established 2>/dev/null | wc -l')) || 0;
+        const ufwStatus = run('ufw status 2>/dev/null | head -1') || 'unknown';
+        const lastLogins = run('last -n 5 --time-format iso 2>/dev/null | head -5')
+          .split('\n').filter(Boolean);
+        const failedSSH = parseInt(run('journalctl -u sshd --since "1 hour ago" --no-pager 2>/dev/null | grep -c "Failed"')) || 0;
+        const dmesgErrors = parseInt(run('dmesg --level=err,warn 2>/dev/null | tail -20 | wc -l')) || 0;
+
+        return sendJSON(res, 200, {
+          ...publicData,
+          admin: true,
+          platform: `${osType()} ${arch()}`,
+          kernel: release(),
+          hostname: osHostname(),
+          cpu: {
+            model: cpuInfo[0]?.model || 'unknown',
+            cores: cpuInfo.length,
+            speed: cpuInfo[0]?.speed || 0,
+            loadAvg: { '1m': +load[0].toFixed(2), '5m': +load[1].toFixed(2), '15m': +load[2].toFixed(2) },
+            loadPercent: Math.round(load[0] / cpuInfo.length * 100),
+          },
+          memory: {
+            totalGB: +(totalMem / 1073741824).toFixed(1),
+            usedGB: +((totalMem - freeMem) / 1073741824).toFixed(1),
+            freeGB: +(freeMem / 1073741824).toFixed(1),
+            percent: Math.round(((totalMem - freeMem) / totalMem) * 100),
+          },
+          disk: {
+            totalGB: +(parseInt(dfLine[1] || '0') / 1073741824).toFixed(1),
+            usedGB: +(parseInt(dfLine[2] || '0') / 1073741824).toFixed(1),
+            availableGB: +(parseInt(dfLine[3] || '0') / 1073741824).toFixed(1),
+            percent: dfLine[4] || '0%',
+          },
+          gpu: gpuInfo,
+          network: {
+            interfaces: netIfaces,
+            traffic,
+          },
+          connections: { ssh: activeSSH, websocket: activeWS, fleet: activeFleet, tcp: tcpConns },
+          pmvpn: {
+            pid: process.pid,
+            nodeVersion: process.version,
+            uptimeSeconds: Math.round(process.uptime()),
+            heapMB: +(process.memoryUsage().heapUsed / 1048576).toFixed(1),
+            rssMB: +(process.memoryUsage().rss / 1048576).toFixed(1),
+          },
+          forensic: {
+            totalProcesses: procCount,
+            topConsumers: topProcs,
+            openFileDescriptors: openFiles,
+            firewall: ufwStatus,
+            failedSSHLastHour: failedSSH,
+            kernelWarnings: dmesgErrors,
+            recentLogins: lastLogins,
+          },
+          wallets: {
+            registered: walletMap.size,
+            admins: Array.from(walletMap.entries()).filter(([, e]) => e.role === 'admin').length,
+          },
+        });
+      } catch (err: any) {
+        return sendJSON(res, 500, { error: 'diagnostics unavailable' });
+      }
     }
 
     // 404 everything else
