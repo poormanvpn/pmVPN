@@ -51,7 +51,7 @@ pnpm run dev   # starts at http://localhost:1420
 4. Click **Connect MetaMask** → sign the login challenge
 5. Click the connection → terminal opens
 
-Your wallet is your identity. No pre-registration needed — first sign-in creates your user automatically (`w` + first 8 hex chars). Logout leaves no trace except your public receive address.
+Your wallet is your identity. No pre-registration needed — first sign-in creates a jailed user automatically (`w` + first 8 hex chars, 10MB quota, isolated home). Admin wallets get 1GB. Logout leaves no trace except your public receive address.
 
 ---
 

@@ -197,7 +197,18 @@ Phone/Browser                    VPS (168.231.126.58)
 
 No passwords. No SSH keys to manage. Your wallet IS your key.
 
-**Auto-registration**: First-time wallets are automatically registered as Linux user `w` + first 8 hex chars of address. Home directory created at `/home/w{addr}/`. Persisted to `~/.pmvpn/wallets.json` — subsequent logins are instant.
+**Auto-registration + Jail**: First-time wallets get a jailed Linux user (`w` + first 8 hex chars). Each user is isolated:
+
+| | Admin wallet | Other wallets |
+|---|---|---|
+| Storage | 1 GB | 10 MB |
+| Vault | 1 GB | 9.99 MB |
+| Files | 50,000 | 1,000 |
+| Home | `/home/pmvpn/` (chmod 700) | `/home/w{addr}/` (chmod 700) |
+| sudo | No | No |
+| See others | No | No |
+
+Users cannot escalate, see other users' files, run cron, or attach to processes. pmVPN runs as root (warden); participants are jailed users.
 
 ---
 

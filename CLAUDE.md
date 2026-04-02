@@ -109,13 +109,28 @@ VPS at `168.231.126.58` — 12 ports active, Hostinger MCP loaded, fleet coordin
 - **`config/`**: Server configuration and wallet-to-user mapping
 - **`utils/`**: Logger, host key, active session registry
 
-### Auto-Registration
+### Auto-Registration + Jail Warden
 
 Any wallet that signs in gets access automatically:
 - Username: `w` + first 8 hex chars of address (e.g., `w10f7ee22`)
-- Linux user created via `useradd` (if running as root)
+- Linux user created via `pmvpn-create-user.sh` (jail warden)
 - Persisted to `~/.pmvpn/wallets.json` — subsequent logins instant
-- Home directory at `/home/w{address}/` — persistent across sessions
+- Home directory at `/home/w{address}/` — `chmod 700`, isolated
+
+### Participant Isolation
+
+| | Admin | Participant |
+|---|---|---|
+| Disk quota | 1 GB | 10 MB |
+| Vault max | 1 GB | 9.99 MB |
+| File limit | 50,000 | 1,000 |
+| sudo/su | No (root is separate) | No |
+| cron | No | No |
+| ptrace | Blocked | Blocked |
+| See other users | No | No |
+| PATH | `/usr/bin:/bin` | `/usr/bin:/bin` |
+
+Future: privilege tiers from asset holding and payment.
 
 ### Diagnostics API (`GET /diagnostics`)
 
