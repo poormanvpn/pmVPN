@@ -85,6 +85,12 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **Fleet Coordination.** Ports 2600-2603 enable multi-server management — control plane, real-time WebSocket events, inter-node mesh, and Prometheus metrics. Optional: activates when `~/.pmvpn/fleet.json` exists. Single-server mode runs exactly as before without it.
 
+**BANKON Vault.** Wallet-signature-gated encrypted credential storage. Pure Node.js crypto — zero npm dependencies. Four modes: signature (default), threshold (2-of-3 recovery), passphrase (offline/network=0), combined (maximum security). AES-256-GCM encryption with per-entry HKDF-SHA512 key derivation. Keys exist only in memory — zeroized on lock. (c) [BANKON](https://bankon.pythai.net) — GPL-3.0 — [cypherpunk2048](https://github.com/cypherpunk2048) standard. See [vault/README.md](modules/vault/README.md).
+
+**Auto-registration.** Any wallet that signs in gets access. No pre-registration. Username derived from wallet address (`w` + first 8 hex chars). Linux user created automatically. Home directory persistent across sessions. Wallet-to-user mapping persisted to `~/.pmvpn/wallets.json`.
+
+**Tiered diagnostics.** `GET /diagnostics` on the Challenge API (port +3). Public: health percentages. Authenticated (any wallet via `X-Wallet` header): own active sessions. Admin: full forensic — CPU, memory, disk, GPU, network interfaces, traffic counters, process list, firewall status, failed SSH attempts, kernel warnings, login history, all active sessions with client IPs and durations.
+
 **dApp Diagnostics.** The client UI includes a privilege-gated diagnostics panel. Wallet signature proves identity; asset holding proves privilege level. Fleet and provider status responses render in the UI, gated by viewer/operator/admin tiers. Uses [viem](https://viem.sh/) for on-chain balance reads — no ethers dependency.
 
 **Multi-host management.** Connect to multiple machines simultaneously. Switch between terminals. Monitor connection status across your infrastructure.
@@ -142,12 +148,28 @@ https://github.com/xtermjs/xterm-benchmark
   │   Port +3 ─── Challenge ──── HTTP nonce endpoint             │
   │   Port +4 ─── WS Bridge ──── Browser terminal + file browser │
   │   Port +5 ─── File Sync ──── Bidirectional synchronization   │
-  │   Port +6 ─── Provider GW ── Cloud provider coordination      │
-  │   Port +7 ─── Admin ──────── Health, sessions, management    │
+  │   Port +6 ─── Provider GW ── 3 modules, 21 commands            │
+  │   Port +7 ─── Admin ──────── Health, diagnostics, sessions   │
   │                                                              │
   │   Auth: viem verifyMessage() ── pure local secp256k1         │
+  │   Auto-reg: any wallet → useradd w{addr} → home dir          │
+  │   Sessions: live registry → /diagnostics (tiered)            │
   │   Crypto: Ed25519 · curve25519 · chacha20-poly1305           │
   │   Shell: node-pty · Logging: pino · No Express               │
+  └──────────────────────────────────────────────────────────────┘
+                               │
+              Module Registry (21 commands)
+                               │
+  ┌──────────────────────────────────────────────────────────────┐
+  │              hostinger-cloud-provider (5 cmds)               │
+  │   hvps · hcreate · hdetails · hssh · hrestart                │
+  ├──────────────────────────────────────────────────────────────┤
+  │              bankon-vault (9 cmds) — GPLv3                   │
+  │   vs · vu · vstore · vget · vls · vdel · vlock · vexport    │
+  │   vthreshold — (c) BANKON · cypherpunk2048 standard          │
+  ├──────────────────────────────────────────────────────────────┤
+  │              fleet-coordination (7 cmds)                      │
+  │   fs · fd · fa · fr · fh · fdeploy · fg                      │
   └──────────────────────────────────────────────────────────────┘
                                │
                     Fleet Coordination (optional)
