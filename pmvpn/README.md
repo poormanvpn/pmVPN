@@ -7,10 +7,12 @@
 </p>
 
 <p align="center">
+  <a href="docs/QUICKSTART.md"><strong>Quick Start</strong></a> ·
   <a href="docs/USAGE.md"><strong>Usage</strong></a> ·
   <a href="docs/DEPLOYMENT.md"><strong>Deploy</strong></a> ·
+  <a href="docs/GUIDE-HOSTINGER-VPS.md"><strong>Hostinger VPS</strong></a> ·
+  <a href="docs/HOSTINGER-MCP-SETUP.md"><strong>MCP Setup</strong></a> ·
   <a href="docs/PROTOCOL.md"><strong>Protocol</strong></a> ·
-  <a href="docs/CRYPTO-SSH.md"><strong>Crypto-SSH</strong></a> ·
   <a href="docs/REMOTE-CONTROL.md"><strong>Remote Control</strong></a> ·
   <a href="docs/DEVELOPMENT.md"><strong>Roadmap</strong></a>
 </p>
@@ -79,9 +81,15 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **VPN tunneling.** The [PM Protocol](docs/PROTOCOL.md) multiplexes TCP, UDP, and DNS streams over a single SSH channel — inspired by [sshuttle](https://github.com/sshuttle/sshuttle). Route traffic through your server. Resolve DNS through your server. Up to 65,535 concurrent streams through one authenticated connection.
 
-**Claude AI proxy.** A dedicated SSH channel for AI assistant interaction. Run [Claude](https://claude.ai/) on remote machines from a handheld interface. The first use case that motivated this entire project.
+**Provider Gateway.** Port +6 serves an HTTP API for cloud provider coordination. The modular architecture loads provider plugins at runtime — [Hostinger MCP](docs/HOSTINGER-MCP-SETUP.md) is the first, enabling VPS listing, provisioning, and management through wallet-authenticated API calls. See [GUIDE-HOSTINGER-VPS.md](docs/GUIDE-HOSTINGER-VPS.md).
+
+**Fleet Coordination.** Ports 2600-2603 enable multi-server management — control plane, real-time WebSocket events, inter-node mesh, and Prometheus metrics. Optional: activates when `~/.pmvpn/fleet.json` exists. Single-server mode runs exactly as before without it.
+
+**dApp Diagnostics.** The client UI includes a privilege-gated diagnostics panel. Wallet signature proves identity; asset holding proves privilege level. Fleet and provider status responses render in the UI, gated by viewer/operator/admin tiers. Uses [viem](https://viem.sh/) for on-chain balance reads — no ethers dependency.
 
 **Multi-host management.** Connect to multiple machines simultaneously. Switch between terminals. Monitor connection status across your infrastructure.
+
+**Claude Remote Control.** Drive your entire pmVPN infrastructure from your phone. [Claude Code](https://docs.anthropic.com/en/docs/claude-code) runs locally on your machine while you interact from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Describe intent in natural language — Claude reads files, runs commands, edits code, and manages servers. Your wallet keys never leave your device. `./remote-control.sh` to start.
 
 **blocktalk.** Wallet-gated communication rooms for private messaging, file sharing, and AI collaboration. Any wallet can spin up a lightweight self-hosted node — no external infrastructure required. For production messaging, [XMTP](https://xmtp.org/) provides decentralized relay with [MLS](https://www.rfc-editor.org/rfc/rfc9420) end-to-end encryption. Room types: private (1:1), boardroom (team), dojo (human-AI multi-chat), [citadel](docs/CITADEL.md) (blockchain-permanent, token-gated). Throttle controls and permission policies protect all participants.
 
@@ -89,9 +97,12 @@ This is not a consumer product. It is infrastructure for people who run their ow
 
 **Crypto-SSH.** Bidirectional key derivation between SSH keys and crypto wallets via [HKDF (RFC 5869)](https://tools.ietf.org/html/rfc5869). Your wallet derives SSH credentials for passwordless server access. Your SSH key derives crypto wallets for asset custody. Heritage: [csshd](https://github.com/cryptoAGI/csshd) — the world's first wallet-login SSH server.
 
-**Claude Remote Control.** Drive your entire pmVPN infrastructure from your phone. [Claude Code](https://docs.anthropic.com/en/docs/claude-code) runs locally on your machine while you interact from [claude.ai/code](https://claude.ai/code) or the Claude mobile app. Describe intent in natural language — Claude reads files, runs commands, edits code, and manages servers. Your wallet keys never leave your device. `./remote-control.sh` to start.
-
 **Self-installation.** pmVPN can bootstrap its own server onto any machine you can reach — even containers with no SSH server installed. The [ssh2](https://github.com/mscdex/ssh2) library IS an SSH server. Upload, install, connect.
+
+
+https://github.com/xtermjs/xterm.js
+https://github.com/xtermjs/shell-engine
+https://github.com/xtermjs/xterm-benchmark
 
 ---
 
@@ -131,12 +142,26 @@ This is not a consumer product. It is infrastructure for people who run their ow
   │   Port +3 ─── Challenge ──── HTTP nonce endpoint             │
   │   Port +4 ─── WS Bridge ──── Browser terminal + file browser │
   │   Port +5 ─── File Sync ──── Bidirectional synchronization   │
-  │   Port +6 ─── Claude AI ──── AI assistant proxy channel      │
+  │   Port +6 ─── Provider GW ── Cloud provider coordination      │
   │   Port +7 ─── Admin ──────── Health, sessions, management    │
   │                                                              │
   │   Auth: viem verifyMessage() ── pure local secp256k1         │
   │   Crypto: Ed25519 · curve25519 · chacha20-poly1305           │
   │   Shell: node-pty · Logging: pino · No Express               │
+  └──────────────────────────────────────────────────────────────┘
+                               │
+                    Fleet Coordination (optional)
+                               │
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    Fleet Ports (2600-2603)                    │
+  │                                                              │
+  │   Port +0 ─── Control ────── HTTP REST fleet CRUD, deploy    │
+  │   Port +1 ─── Events ─────── WebSocket real-time monitoring  │
+  │   Port +2 ─── Mesh ────────── Inter-node heartbeat, sync     │
+  │   Port +3 ─── Metrics ────── Prometheus + health endpoint    │
+  │                                                              │
+  │   Enabled when ~/.pmvpn/fleet.json exists                    │
+  │   Hostinger MCP: VPS provisioning via hostinger-api-mcp      │
   └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -736,7 +761,7 @@ pmVPN stands on the shoulders of projects and people who built the infrastructur
   <em>Code is law. Keys are identity. Verification replaces trust.</em>
 </p>
 <p align="center">
-  <a href="https://github.com/cypherpunk2048">cypherpunk2048</a> · <a href="https://github.com/Professor-Codephreak">Professor Codephreak</a>
+  <a href="https://github.com/cypherpunk2048">cypherpunk2048</a> · <a href="https://github.com/Professor-Codephreak">codephreak</a>
 </p>
 <p align="center">
   <a href="https://github.com/poormanvpn">github.com/poormanvpn</a>
