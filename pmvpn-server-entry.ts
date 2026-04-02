@@ -48,7 +48,12 @@ async function main(): Promise<void> {
     await moduleRegistry.loadModule(hostingerModule);
     logger.info('Hostinger cloud provider module loaded');
 
-    // Future: Load other cloud provider modules here
+    // Load BANKON Vault module
+    const { default: VaultModule } = await import('./pmvpn/modules/vault/index.js');
+    const vaultModule = new VaultModule();
+    await moduleRegistry.loadModule(vaultModule);
+    logger.info('BANKON Vault module loaded');
+
     logger.info('All available modules loaded successfully');
   } catch (error) {
     logger.warn({ error: error.message }, 'Failed to load some modules (will continue without them)');
