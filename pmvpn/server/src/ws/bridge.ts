@@ -16,7 +16,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { join } from 'node:path';
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import * as pty from 'node-pty';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
@@ -111,13 +111,32 @@ export function createWsBridge(walletMap: WalletMap) {
           return;
         }
 
-        // Check wallet map
+        // Wallet → user (auto-register if unknown)
         const addrLower = payload.address.toLowerCase();
-        const entry = walletMap.get(addrLower);
+        let entry = walletMap.get(addrLower);
+
         if (!entry) {
-          ws.send(JSON.stringify({ type: 'auth', ok: false, error: 'wallet not registered' }));
-          ws.close();
-          return;
+          // Auto-register: wallet address → username
+          const username = `w${addrLower.slice(2, 10)}`;
+          entry = { user: username, role: 'user' };
+          walletMap.set(addrLower, entry);
+          logger.info({ client: clientIp, address: addrLower, user: username }, 'ws: auto-registered wallet');
+
+          // Persist
+          try {
+            const { homedir } = await import('node:os');
+            const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
+            const existing: Record<string, any> = {};
+            try { Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8'))); } catch {}
+            existing[addrLower] = { user: username, role: 'user' };
+            writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
+          } catch {}
+
+          // Create Linux user if root
+          try {
+            const { execSync } = await import('node:child_process');
+            execSync(`id ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
+          } catch {}
         }
 
         // Auth success

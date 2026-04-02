@@ -4,9 +4,10 @@
 import type ssh2 from 'ssh2';
 type Connection = ssh2.Connection;
 type ServerChannel = ssh2.ServerChannel;
-import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync } from 'node:fs';
+import { spawn, execSync } from 'node:child_process';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
 import { spawnShell } from './shell.js';
@@ -78,12 +79,37 @@ export function handleConnection(
       return ctx.reject(['password']);
     }
 
-    // Check wallet-user mapping
+    // Wallet → user mapping (auto-register if unknown)
     const addrLower = address.toLowerCase();
-    const entry = walletMap.get(addrLower);
+    let entry = walletMap.get(addrLower);
+
     if (!entry) {
-      logger.warn({ client: clientLabel, address: addrLower }, 'unknown wallet address');
-      return ctx.reject(['password']);
+      // Auto-register: wallet address becomes username
+      const username = `w${addrLower.slice(2, 10)}`;
+      entry = { user: username, role: 'user' };
+      walletMap.set(addrLower, entry);
+      logger.info({ client: clientLabel, address: addrLower, user: username }, 'auto-registered wallet on SSH auth');
+
+      // Persist to wallets.json
+      try {
+        const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
+        const existing: Record<string, any> = {};
+        try { Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8'))); } catch {}
+        existing[addrLower] = { user: username, role: 'user' };
+        writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
+      } catch {}
+
+      // Create Linux user if running as root (VPS deployment)
+      try {
+        execSync(`id ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
+        logger.info({ user: username }, 'Linux user created');
+      } catch (err) {
+        // Not root or user already exists — create home dir manually
+        const homeDir = join(BASE_HOME, username);
+        if (!existsSync(homeDir)) {
+          mkdirSync(homeDir, { recursive: true });
+        }
+      }
     }
 
     // Authentication successful

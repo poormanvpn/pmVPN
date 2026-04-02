@@ -4,11 +4,13 @@
 // Minimal attack surface. No framework. Manual routing.
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { createChallenge } from '../auth/challenge.js';
 import { logger } from '../utils/logger.js';
 import { PROTOCOL_VERSION } from '../shared.js';
 import type { WalletMap } from '../config/wallets.js';
-// WalletMap is re-exported from config/wallets
 
 function sendJSON(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
@@ -51,10 +53,25 @@ export function createChallengeServer(walletMap: WalletMap) {
         return sendJSON(res, 400, { error: 'missing or invalid address parameter' });
       }
 
-      // Optional: only issue challenges for known wallets
-      // (remove this check to allow open registration later)
-      if (!walletMap.has(address.toLowerCase())) {
-        return sendJSON(res, 403, { error: 'wallet not registered' });
+      // Auto-register: any wallet that signs gets access.
+      // Username = 'w' + first 8 hex chars of address.
+      // Persisted to wallets.json so subsequent logins are instant.
+      const addrLower = address.toLowerCase();
+      if (!walletMap.has(addrLower)) {
+        const username = `w${addrLower.slice(2, 10)}`;
+        walletMap.set(addrLower, { user: username, role: 'user' });
+        logger.info({ address: addrLower, user: username }, 'auto-registered new wallet');
+        try {
+          const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
+          const existing: Record<string, any> = {};
+          try {
+            Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8')));
+          } catch {}
+          existing[addrLower] = { user: username, role: 'user' };
+          writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
+        } catch (err) {
+          logger.warn({ err }, 'failed to persist wallet registration');
+        }
       }
 
       const challenge = createChallenge(address.toLowerCase());
