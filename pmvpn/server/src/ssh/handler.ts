@@ -102,11 +102,12 @@ export function handleConnection(
         writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
       } catch {}
 
-      // Create Linux user with quota and hardening
+      // Create jailed Linux user with quota (warden: pmvpn-create-user.sh)
+      // Admin wallets get 1GB, all others get 10MB + 9.99MB vault max
       try {
-        // Use pmvpn-create-user.sh if available (sets quota + restrictions)
-        execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
-        logger.info({ user: username }, 'Linux user created with quota');
+        const userRole = entry.role || 'user';
+        execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} ${userRole} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
+        logger.info({ user: username, role: userRole, quota: userRole === 'admin' ? '1GB' : '10MB' }, 'jailed user created');
       } catch (err) {
         const homeDir = join(BASE_HOME, username);
         if (!existsSync(homeDir)) {

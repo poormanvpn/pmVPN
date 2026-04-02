@@ -133,10 +133,11 @@ export function createWsBridge(walletMap: WalletMap) {
             writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
           } catch {}
 
-          // Create Linux user if root
+          // Create jailed user with quota
           try {
             const { execSync } = await import('node:child_process');
-            execSync(`id ${username} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
+            const userRole = entry.role || 'user';
+            execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} ${userRole} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
           } catch {}
         }
 

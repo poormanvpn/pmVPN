@@ -246,6 +246,13 @@ export function createChallengeServer(walletMap: WalletMap) {
           wallets: {
             registered: walletMap.size,
             admins: Array.from(walletMap.entries()).filter(([, e]) => e.role === 'admin').length,
+            users: Array.from(walletMap.entries()).map(([addr, e]) => ({
+              address: addr.slice(0, 10) + '...',
+              username: e.user,
+              role: e.role,
+              quota: e.role === 'admin' ? '1GB' : '10MB',
+              vaultMax: e.role === 'admin' ? '1GB' : '9.99MB',
+            })),
           },
           sessions: {
             active: getActiveSessions().map(s => ({
