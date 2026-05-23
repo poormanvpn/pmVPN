@@ -6,6 +6,7 @@
 // Keys are identity. Verification replaces trust.
 
 import { loadOrGenerateHostKey } from './utils/hostkey.js';
+import { ensureWardenInstalled } from './utils/warden.js';
 import { loadWalletMap } from './config/wallets.js';
 import { createSSHServer } from './ssh/server.js';
 import { createChallengeServer } from './api/challenge.js';
@@ -18,6 +19,10 @@ import { createProviderGateway } from '../../modules/core/provider-gateway.js';
 
 async function main(): Promise<void> {
   logger.info({ version: PROTOCOL_VERSION }, 'PMVPN server starting');
+
+  // Self-inject jail warden into /usr/local/bin if we're root and it's missing.
+  // Auto-registration in handler.ts/ws bridge.ts depends on this script.
+  ensureWardenInstalled();
 
   // Load Ed25519 host key
   const hostKey = loadOrGenerateHostKey();

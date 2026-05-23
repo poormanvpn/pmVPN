@@ -128,6 +128,17 @@ fi
 cd ~/pmvpn-server
 pnpm install
 
+# Install jail warden scripts to /usr/local/bin (third injection path)
+# When the server runs as root the warden creates the jailed user with
+# disk quota, ~/.ssh/pmvpn_wallet binding, and a tagged ed25519 key.
+if [ -d ~/pmvpn-server/scripts ] && [ "$(id -u)" -eq 0 ]; then
+  install -m 755 ~/pmvpn-server/scripts/pmvpn-create-user.sh /usr/local/bin/pmvpn-create-user.sh
+  install -m 755 ~/pmvpn-server/scripts/pmvpn-warden.sh      /usr/local/bin/pmvpn-warden
+  echo "jail warden installed: /usr/local/bin/pmvpn-create-user.sh + pmvpn-warden"
+elif [ -d ~/pmvpn-server/scripts ]; then
+  echo "(skipping warden install — not root; run 'sudo bash ~/.pmvpn/install.sh' for jail mode)"
+fi
+
 echo ""
 echo "pmVPN server installed at ~/pmvpn-server"
 echo "Start with: bash ~/.pmvpn/start.sh"
@@ -147,8 +158,9 @@ echo "Or: cd ~/pmvpn-server && PMVPN_BASE_PORT=${basePort} WALLET_USER_MAP='${wa
     term.terminal.writeln('');
     term.terminal.writeln('  \x1b[32mFiles deployed to ~/.pmvpn/\x1b[0m');
     term.terminal.writeln('  \x1b[32m  wallets.json  — your wallet mapped to this user\x1b[0m');
-    term.terminal.writeln('  \x1b[32m  install.sh    — installs Node.js + pmVPN server\x1b[0m');
+    term.terminal.writeln('  \x1b[32m  install.sh    — installs Node.js + pmVPN server + jail warden\x1b[0m');
     term.terminal.writeln('  \x1b[32m  start.sh      — starts server on port ' + basePort + '\x1b[0m');
+    term.terminal.writeln('  \x1b[90m  (run install.sh with sudo to enable participant isolation)\x1b[0m');
     term.terminal.writeln('');
     term.terminal.writeln('  \x1b[33mRun:\x1b[0m');
     term.terminal.writeln('  \x1b[37m  bash ~/.pmvpn/install.sh\x1b[0m');

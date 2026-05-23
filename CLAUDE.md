@@ -113,9 +113,38 @@ VPS at `168.231.126.58` — 12 ports active, Hostinger MCP loaded, fleet coordin
 
 Any wallet that signs in gets access automatically:
 - Username: `w` + first 8 hex chars of address (e.g., `w10f7ee22`)
-- Linux user created via `pmvpn-create-user.sh` (jail warden)
+- Linux user created via `pmvpn-create-user.sh` (jail warden, `server/scripts/`)
 - Persisted to `~/.pmvpn/wallets.json` — subsequent logins instant
 - Home directory at `/home/w{address}/` — `chmod 700`, isolated
+
+The warden writes a wallet binding to `~/.ssh/pmvpn_wallet` and a tagged
+`ed25519` key to `~/.ssh/authorized_keys` (`pmvpn:<wallet>:v1`). On every
+subsequent auth the server reads `pmvpn_wallet` and rejects any wallet that
+does not match — the binding survives `wallets.json` corruption.
+
+Three install paths for the warden (`auth/provision.ts` → `/usr/local/bin/pmvpn-create-user.sh`):
+1. **Self-inject on boot** — `server/src/utils/warden.ts` writes the script
+   from the bundle when the server starts as root and the file is missing or
+   out of date. Version-checked, idempotent.
+2. **Bootstrap installer** — `client/src/bootstrap.ts` ships `install.sh`,
+   which `install -m 755`s the scripts to `/usr/local/bin/` after the clone.
+3. **Manual interactive CLI** — `pmvpn-warden` (`server/scripts/pmvpn-warden.sh`)
+   provides `add`/`list`/`show`/`remove`/`rotate` subcommands for ops staff.
+
+### Privilege drop
+
+When the server runs as root, sessions actually drop to the jailed user:
+- **PTY shell** (`shell.ts`, `ws/bridge.ts`) — `pty.spawn` is called with the
+  user's uid/gid from `getent passwd`.
+- **Exec** (`handler.ts`) — `child_process.spawn` with uid/gid.
+- **SFTP** (`ssh/sftp-host.ts` → `sftp-worker.ts`) — every session forks a
+  child that calls `process.setgroups`/`setgid`/`setuid` once before any
+  filesystem access. Used by both the WS file browser and the SSH SFTP
+  subsystem (`sftp-subsystem.ts`, port +1).
+- **Tunnel** — still runs in-process (it only opens outbound sockets).
+
+If the server is non-root or the OS user is missing, sessions are refused
+rather than silently running as root.
 
 ### Participant Isolation
 
@@ -129,6 +158,7 @@ Any wallet that signs in gets access automatically:
 | ptrace | Blocked | Blocked |
 | See other users | No | No |
 | PATH | `/usr/bin:/bin` | `/usr/bin:/bin` |
+| Bound wallet | `~/.ssh/pmvpn_wallet` (enforced) | `~/.ssh/pmvpn_wallet` (enforced) |
 
 Future: privilege tiers from asset holding and payment.
 

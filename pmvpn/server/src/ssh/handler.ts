@@ -4,16 +4,19 @@
 import type ssh2 from 'ssh2';
 type Connection = ssh2.Connection;
 type ServerChannel = ssh2.ServerChannel;
-import { spawn, execSync } from 'node:child_process';
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
+import { provisionWallet } from '../auth/provision.js';
 import { spawnShell } from './shell.js';
+import { createSftpHost } from './sftp-host.js';
+import { attachSftpSubsystem } from './sftp-subsystem.js';
 import { startTunnelServer } from '../tunnel/server.js';
 import { logger } from '../utils/logger.js';
 import { registerSession, removeSession, touchSession } from '../utils/sessions.js';
+import { lookupUser, canDropPrivileges } from '../utils/userinfo.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
 
@@ -82,50 +85,23 @@ export function handleConnection(
       return ctx.reject(['password']);
     }
 
-    // Wallet → user mapping (auto-register if unknown)
-    const addrLower = address.toLowerCase();
-    let entry = walletMap.get(addrLower);
-
-    if (!entry) {
-      // Auto-register: wallet address becomes username
-      const username = `w${addrLower.slice(2, 10)}`;
-      entry = { user: username, role: 'user' };
-      walletMap.set(addrLower, entry);
-      logger.info({ client: clientLabel, address: addrLower, user: username }, 'auto-registered wallet on SSH auth');
-
-      // Persist to wallets.json
-      try {
-        const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
-        const existing: Record<string, any> = {};
-        try { Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8'))); } catch {}
-        existing[addrLower] = { user: username, role: 'user' };
-        writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
-      } catch {}
-
-      // Create jailed Linux user with quota (warden: pmvpn-create-user.sh)
-      // Admin wallets get 1GB, all others get 10MB + 9.99MB vault max
-      try {
-        const userRole = entry.role || 'user';
-        execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} ${userRole} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
-        logger.info({ user: username, role: userRole, quota: userRole === 'admin' ? '1GB' : '10MB' }, 'jailed user created');
-      } catch (err) {
-        const homeDir = join(BASE_HOME, username);
-        if (!existsSync(homeDir)) {
-          mkdirSync(homeDir, { recursive: true, mode: 0o700 });
-        }
-      }
+    // Provision the Linux user (or refuse if the wallet does not own this account)
+    const prov = provisionWallet(address, walletMap);
+    if (!prov.ok || !prov.entry || !prov.homeDir) {
+      logger.warn({ client: clientLabel, address, error: prov.error }, 'provisioning rejected auth');
+      return ctx.reject(['password']);
     }
 
     // Authentication successful
-    session.username = entry.user;
-    session.address = addrLower;
+    session.username = prov.entry.user;
+    session.address = address.toLowerCase();
     session.authenticated = true;
 
     // Register in active session registry
     const sessionType = portRole === 'shell' ? 'ssh-shell' : portRole === 'sftp' ? 'ssh-sftp' : portRole === 'exec' ? 'ssh-exec' : 'tunnel';
-    session.sessionId = registerSession(addrLower, entry.user, entry.role, sessionType, clientInfo.ip, clientInfo.port);
+    session.sessionId = registerSession(session.address, prov.entry.user, prov.entry.role, sessionType, clientInfo.ip, clientInfo.port);
 
-    logger.info({ client: clientLabel, user: entry.user, address: addrLower, sessionId: session.sessionId }, 'authenticated');
+    logger.info({ client: clientLabel, user: prov.entry.user, address: session.address, newUser: prov.newUser, sessionId: session.sessionId }, 'authenticated');
     ctx.accept();
   });
 
@@ -180,13 +156,26 @@ export function handleConnection(
           return;
         }
         const channel = accept();
-        // For exec, spawn a one-shot command
+
+        // Privilege drop: run the command as the jailed user when we're root.
+        const userInfo = lookupUser(username);
+        const drop = canDropPrivileges();
+        if (drop && !userInfo) {
+          logger.error({ username }, 'refusing exec — user not provisioned');
+          try { channel.stderr.write(`pmvpn: user ${username} not provisioned\r\n`); } catch {}
+          try { channel.exit(1); channel.close(); } catch {}
+          return;
+        }
+
         const proc = spawn('bash', ['-c', info.command], {
           cwd: homeDir,
+          uid: drop && userInfo ? userInfo.uid : undefined,
+          gid: drop && userInfo ? userInfo.gid : undefined,
           env: {
             USER: username,
             HOME: homeDir,
             PATH: '/usr/local/bin:/usr/bin:/bin',
+            PMVPN_JAIL: drop ? '1' : '0',
           },
         });
         proc.stdout.on('data', (data: Buffer) => channel.write(data));
@@ -199,13 +188,21 @@ export function handleConnection(
         channel.on('close', () => proc.kill());
       });
 
-      sshSession.on('sftp', (accept, _reject) => {
+      sshSession.on('sftp', async (accept, _reject) => {
         if (portRole !== 'sftp') {
           logger.warn({ user: username, role: portRole }, 'sftp request on non-sftp port');
           return;
         }
-        // SFTP handled in Phase 3
-        logger.info({ user: username }, 'SFTP session requested (not yet implemented)');
+        const sftpStream = accept();
+        try {
+          const host = await createSftpHost(username, homeDir);
+          attachSftpSubsystem(sftpStream, host, username);
+          sftpStream.on('close' as any, () => host.close());
+          logger.info({ user: username }, 'SFTP session opened');
+        } catch (err: any) {
+          logger.error({ err: err.message, user: username }, 'SFTP session failed');
+          try { sftpStream.end(); } catch {}
+        }
       });
     });
   });

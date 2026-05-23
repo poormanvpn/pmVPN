@@ -15,19 +15,18 @@
 
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { join } from 'node:path';
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import * as pty from 'node-pty';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
-import { sftpLs, sftpGet, sftpPut, sftpMkdir, sftpRm, sftpStat } from '../ssh/sftp.js';
+import { provisionWallet } from '../auth/provision.js';
+import { createSftpHost, type SftpHost } from '../ssh/sftp-host.js';
 import { createShare, addFileToShare, getShare, canAccess, listShareFiles, getShareFile, removeShare, listShares, buildInviteMessage } from '../share/manager.js';
 import { logger } from '../utils/logger.js';
 import { registerSession, removeSession, touchSession } from '../utils/sessions.js';
+import { lookupUser, canDropPrivileges } from '../utils/userinfo.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
 
-const BASE_HOME = process.env.PMVPN_HOME_BASE || '/home';
 const DEFAULT_SHELL = process.env.PMVPN_SHELL || '/bin/bash';
 
 interface Session {
@@ -35,6 +34,7 @@ interface Session {
   homeDir: string;
   address: string;
   shell: ReturnType<typeof pty.spawn> | null;
+  sftp: SftpHost | null;
 }
 
 /**
@@ -112,49 +112,37 @@ export function createWsBridge(walletMap: WalletMap) {
           return;
         }
 
-        // Wallet → user (auto-register if unknown)
+        // Provision the Linux user (or refuse if wallet does not own it)
         const addrLower = payload.address.toLowerCase();
-        let entry = walletMap.get(addrLower);
-
-        if (!entry) {
-          // Auto-register: wallet address → username
-          const username = `w${addrLower.slice(2, 10)}`;
-          entry = { user: username, role: 'user' };
-          walletMap.set(addrLower, entry);
-          logger.info({ client: clientIp, address: addrLower, user: username }, 'ws: auto-registered wallet');
-
-          // Persist
-          try {
-            const { homedir } = await import('node:os');
-            const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
-            const existing: Record<string, any> = {};
-            try { Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8'))); } catch {}
-            existing[addrLower] = { user: username, role: 'user' };
-            writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
-          } catch {}
-
-          // Create jailed user with quota
-          try {
-            const { execSync } = await import('node:child_process');
-            const userRole = entry.role || 'user';
-            execSync(`id ${username} 2>/dev/null || /usr/local/bin/pmvpn-create-user.sh ${username} ${userRole} 2>/dev/null || useradd -m -s /bin/bash ${username}`, { stdio: 'pipe' });
-          } catch {}
+        const prov = provisionWallet(addrLower, walletMap);
+        if (!prov.ok || !prov.entry || !prov.homeDir) {
+          ws.send(JSON.stringify({ type: 'auth', ok: false, error: prov.error || 'provisioning failed' }));
+          ws.close();
+          return;
         }
 
-        // Auth success
-        const homeDir = join(BASE_HOME, entry.user);
-        if (!existsSync(homeDir)) {
-          mkdirSync(homeDir, { recursive: true });
-        }
-
-        session = { username: entry.user, homeDir, address: addrLower, shell: null };
+        session = { username: prov.entry.user, homeDir: prov.homeDir, address: addrLower, shell: null, sftp: null };
         authenticated = true;
 
-        // Track session
-        const wsSessionId = registerSession(addrLower, entry.user, entry.role, 'websocket', clientIp, 0);
+        // Start the privilege-dropped SFTP worker for this session
+        try {
+          session.sftp = await createSftpHost(prov.entry.user, prov.homeDir);
+        } catch (err: any) {
+          logger.warn({ err: err.message }, 'ws: sftp host init failed; file ops disabled');
+        }
 
-        logger.info({ client: clientIp, user: entry.user, address: addrLower }, 'ws: authenticated');
-        ws.send(JSON.stringify({ type: 'auth', ok: true, user: entry.user, home: '/' }));
+        // Track session
+        const wsSessionId = registerSession(addrLower, prov.entry.user, prov.entry.role, 'websocket', clientIp, 0);
+
+        logger.info({ client: clientIp, user: prov.entry.user, address: addrLower, newUser: prov.newUser }, 'ws: authenticated');
+        ws.send(JSON.stringify({
+          type: 'auth',
+          ok: true,
+          user: prov.entry.user,
+          home: '/',
+          newUser: prov.newUser === true,
+          role: prov.entry.role,
+        }));
 
         // Deregister on close
         ws.on('close', () => { removeSession(wsSessionId); });
@@ -169,23 +157,33 @@ export function createWsBridge(walletMap: WalletMap) {
       // ── Shell ──
       if (msg.type === 'shell') {
         if (!session.shell) {
-          // Spawn PTY on first shell message
-          session.shell = pty.spawn(DEFAULT_SHELL, [], {
+          // Privilege drop: spawn PTY as the jailed user when root.
+          const userInfo = lookupUser(session.username);
+          const drop = canDropPrivileges();
+          if (drop && !userInfo) {
+            ws.send(JSON.stringify({ type: 'shell', data: `pmvpn: user ${session.username} not provisioned\r\n` }));
+            return;
+          }
+
+          session.shell = pty.spawn(userInfo?.shell || DEFAULT_SHELL, [], {
             name: 'xterm-256color',
             cols: msg.cols || 80,
             rows: msg.rows || 24,
             cwd: session.homeDir,
+            uid: drop && userInfo ? userInfo.uid : undefined,
+            gid: drop && userInfo ? userInfo.gid : undefined,
             env: {
               TERM: 'xterm-256color',
               USER: session.username,
               HOME: session.homeDir,
-              SHELL: DEFAULT_SHELL,
+              SHELL: userInfo?.shell || DEFAULT_SHELL,
               PATH: '/usr/local/bin:/usr/bin:/bin',
               LANG: 'en_US.UTF-8',
+              PMVPN_JAIL: drop ? '1' : '0',
             },
           });
 
-          logger.info({ user: session.username, pid: session.shell.pid }, 'ws: shell spawned');
+          logger.info({ user: session.username, pid: session.shell.pid, uid: userInfo?.uid, dropped: drop && !!userInfo }, 'ws: shell spawned');
 
           // PTY output → WebSocket
           session.shell.onData((data) => {
@@ -219,30 +217,17 @@ export function createWsBridge(walletMap: WalletMap) {
         const id = msg.id || 0;
         const path = msg.path || '/';
 
-        let result;
-        switch (msg.cmd) {
-          case 'ls':
-            result = await sftpLs(session.homeDir, path);
-            break;
-          case 'get':
-            result = await sftpGet(session.homeDir, path);
-            break;
-          case 'put':
-            result = await sftpPut(session.homeDir, path, msg.data || '');
-            break;
-          case 'mkdir':
-            result = await sftpMkdir(session.homeDir, path);
-            break;
-          case 'rm':
-            result = await sftpRm(session.homeDir, path);
-            break;
-          case 'stat':
-            result = await sftpStat(session.homeDir, path);
-            break;
-          default:
-            result = { ok: false, error: `unknown command: ${msg.cmd}` };
+        if (!session.sftp) {
+          ws.send(JSON.stringify({ type: 'sftp', id, result: { ok: false, error: 'sftp unavailable' } }));
+          return;
         }
 
+        const allowed = ['ls', 'get', 'put', 'mkdir', 'rm', 'stat'];
+        if (!allowed.includes(msg.cmd)) {
+          ws.send(JSON.stringify({ type: 'sftp', id, result: { ok: false, error: `unknown command: ${msg.cmd}` } }));
+          return;
+        }
+        const result = await session.sftp.exec(msg.cmd, path, msg.data);
         ws.send(JSON.stringify({ type: 'sftp', id, result }));
         return;
       }
@@ -271,8 +256,12 @@ export function createWsBridge(walletMap: WalletMap) {
               const ok = addFileToShare(msg.shareId, msg.filename, buffer);
               result = { ok, error: ok ? undefined : 'share not found' };
             } else if (msg.sourcePath) {
-              // Copy from user's filesystem
-              const srcResult = await sftpGet(session.homeDir, msg.sourcePath);
+              // Copy from user's filesystem (uses the privilege-dropped worker)
+              if (!session.sftp) {
+                result = { ok: false, error: 'sftp unavailable' };
+                break;
+              }
+              const srcResult = await session.sftp.exec('get', msg.sourcePath);
               if (srcResult.ok && srcResult.data) {
                 const buffer = Buffer.from(srcResult.data, 'base64');
                 const ok = addFileToShare(msg.shareId, msg.filename || msg.sourcePath.split('/').pop()!, buffer);
@@ -363,6 +352,9 @@ export function createWsBridge(walletMap: WalletMap) {
       if (session?.shell) {
         session.shell.kill();
         logger.info({ user: session.username }, 'ws: shell killed on disconnect');
+      }
+      if (session?.sftp) {
+        session.sftp.close();
       }
       logger.info({ client: clientIp, user: session?.username }, 'ws: disconnected');
     });

@@ -215,6 +215,17 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Updated smart contract interfaces with fee-splitting (Algorand + EVM)
 - [x] Comprehensive CITADEL.md documentation
 
+### Phase 9.9: Jail + Privilege Drop ✅ (2026-05-22)
+
+- [x] `pmvpn-create-user.sh` jail warden — quotas, restricted profile, ptrace block
+- [x] `pmvpn-warden` interactive admin CLI (add/list/show/remove/rotate)
+- [x] Three install paths: self-inject on boot, bootstrap installer, manual
+- [x] Privilege drop via `uid`/`gid` in `pty.spawn` (shell, ws bridge) and `child_process.spawn` (exec)
+- [x] SFTP worker — forked child `setuid()`s before any filesystem access
+- [x] SSH SFTP subsystem (port +1) — stock `sftp`/`scp` clients work via wallet auth
+- [x] Wallet binding (`~/.ssh/pmvpn_wallet`) — auth rejected on mismatch
+- [x] Derived ed25519 in `~/.ssh/authorized_keys` (`pmvpn:<wallet>:v1`) for OpenSSH fallback
+
 ### Phase 10: Hardening (Future)
 
 - [ ] Security audit (input validation, path traversal, replay)

@@ -1,6 +1,27 @@
 # pmVPN Code Audit
 
 *Audit date: 2026-03-28 | Auditor: Claude Opus 4.6 | Commit: 089a675*
+*Updated: 2026-05-22 — privilege drop + jail warden + wallet binding implemented*
+
+---
+
+## 2026-05-22 update: post-audit hardening
+
+The two largest gaps flagged below — sessions running as root and the
+missing `pmvpn-create-user.sh` script — have since been fixed.
+
+| Area | What changed | Files |
+|------|--------------|-------|
+| **Privilege drop** | PTY shells (`shell.ts`, `ws/bridge.ts`) and exec (`handler.ts`) now pass `uid`/`gid` to `pty.spawn` / `child_process.spawn`. Sessions are refused if the OS user is missing. | `utils/userinfo.ts` (new) |
+| **SFTP isolation** | Per-session forked worker calls `setgroups`/`setgid`/`setuid` before any fs access. Used by both the WS file browser and the new SSH SFTP subsystem on port +1. | `ssh/sftp-worker.ts`, `ssh/sftp-host.ts`, `ssh/sftp-subsystem.ts` (all new) |
+| **Wallet binding** | `~/.ssh/pmvpn_wallet` records the owning wallet; auth is rejected on mismatch. Survives `wallets.json` corruption. | `auth/provision.ts` (new) |
+| **Jail warden** | `pmvpn-create-user.sh` actually exists. Three install paths (self-inject on boot, bootstrap installer, manual `pmvpn-warden` CLI). | `server/scripts/*.sh`, `utils/warden.ts` (new) |
+| **SSH SFTP** | Port +1 stub replaced with full subsystem so stock `sftp`/`scp` clients work. | `ssh/sftp-subsystem.ts` |
+
+These flip the "Strong security for its threat profile … not yet suitable
+for hostile multi-tenant" verdict closer to multi-tenant ready: authenticated
+sessions can no longer escalate, and Linux ownership/quotas are actually
+enforced.
 
 ---
 
@@ -115,8 +136,11 @@ HKDF manually verified: Extract, Expand, counter encoding, truncation all correc
 | Signature verify | auth/verifier.ts | Secure |
 | SSH factory | ssh/server.ts | Hardened |
 | SSH handler | ssh/handler.ts | Solid |
-| PTY shell | ssh/shell.ts | Secure |
-| SFTP | ssh/sftp.ts | Symlink risk noted |
+| PTY shell | ssh/shell.ts | Hardened — uid/gid drop (2026-05-22) |
+| SFTP (in-process) | ssh/sftp.ts | Symlink risk noted |
+| SFTP (worker) | ssh/sftp-{worker,host,subsystem}.ts | Hardened — setuid worker (2026-05-22) |
+| Provisioning | auth/provision.ts | Wallet binding enforced (2026-05-22) |
+| Jail warden | scripts/pmvpn-create-user.sh | Implemented (2026-05-22) |
 | PM protocol | tunnel/protocol.ts | Correct |
 | Multiplexer | tunnel/mux.ts | Correct |
 | TCP/UDP/DNS | tunnel/handlers.ts | Correct |

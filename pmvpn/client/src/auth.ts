@@ -1,14 +1,7 @@
 // pmVPN Client — Wallet Authentication
-// MIT License
-//
-// Desktop: EIP-6963 discovery → announced provider → eth_requestAccounts
-// Mobile:  MetaMask SDK → deep link to native app
-// Signing: viem walletClient.signMessage
-//
-// Based on:
-// - EIP-6963: https://eips.ethereum.org/EIPS/eip-6963
-// - MetaMask docs: https://docs.metamask.io/wallet/how-to/connect/
-// - Chainlist pattern: raw eth_requestAccounts, no pre-revoke
+// Same pattern as allchain.html / chainmarketcap.html (proven working)
+// EIP-6963 + providers[] + window.ethereum fallback
+// viem for signing only
 
 import { createWalletClient, custom, type WalletClient } from 'viem';
 import { mainnet } from 'viem/chains';
@@ -31,75 +24,82 @@ let activeProvider: any = null;
 let sdk: MetaMaskSDK | null = null;
 let sdkProvider: any = null;
 
-// ── EIP-6963 provider discovery ──
-// Wallets announce themselves via CustomEvent. We collect them.
-interface EIP6963ProviderDetail {
-  info: { uuid: string; name: string; icon: string; rdns: string };
-  provider: any;
+// ── Wallet detection (same as allchain.html) ──
+let detectedWallets: { name: string; provider: any; id: string }[] = [];
+let walletsReady = false;
+
+function setupEIP6963WalletDetection(): Promise<any[]> {
+  return new Promise((resolve) => {
+    const onAnnouncement = (event: any) => {
+      const { info, provider } = event.detail;
+      if (detectedWallets.some(w => w.id === info.uuid)) return;
+      detectedWallets.push({ name: info.name, provider, id: info.rdns || info.uuid });
+    };
+    window.addEventListener('eip6963:announceProvider', onAnnouncement as EventListener);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    setTimeout(() => {
+      window.removeEventListener('eip6963:announceProvider', onAnnouncement as EventListener);
+      const legacy = detectLegacyWallets();
+      for (const w of legacy) {
+        if (!detectedWallets.some(d => d.id === w.id)) detectedWallets.push(w);
+      }
+      walletsReady = true;
+      resolve(detectedWallets);
+    }, 800);
+  });
 }
 
-const discoveredProviders: EIP6963ProviderDetail[] = [];
+// Check providers[] FIRST — window.ethereum is a proxy that causes selectExtension errors
+function detectLegacyWallets(): { name: string; provider: any; id: string }[] {
+  const wallets: { name: string; provider: any; id: string }[] = [];
 
-if (typeof window !== 'undefined') {
-  // Listen for wallet announcements (EIP-6963)
-  window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) => {
-    const detail = event.detail as EIP6963ProviderDetail;
-    const idx = discoveredProviders.findIndex(p => p.info.uuid === detail.info.uuid);
-    if (idx >= 0) {
-      discoveredProviders[idx] = detail;
-    } else {
-      discoveredProviders.push(detail);
+  if ((window as any).ethereum?.providers?.length) {
+    for (const provider of (window as any).ethereum.providers) {
+      if (provider.isMetaMask && !wallets.some(w => w.id === 'metamask')) {
+        wallets.push({ name: 'MetaMask', provider, id: 'metamask' });
+      }
+      if (provider.isCoinbaseWallet && !wallets.some(w => w.id === 'coinbase')) {
+        wallets.push({ name: 'Coinbase Wallet', provider, id: 'coinbase' });
+      }
     }
-  }) as EventListener);
+  }
 
-  // Ask wallets to announce — they re-announce on each request
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  if (!wallets.some(w => w.id === 'metamask') && (window as any).ethereum?.isMetaMask) {
+    wallets.push({ name: 'MetaMask', provider: (window as any).ethereum, id: 'metamask' });
+  }
+
+  if ((window as any).phantom?.ethereum) {
+    wallets.push({ name: 'Phantom', provider: (window as any).phantom.ethereum, id: 'phantom' });
+  }
+
+  if (wallets.length === 0 && (window as any).ethereum) {
+    wallets.push({ name: 'Wallet', provider: (window as any).ethereum, id: 'ethereum' });
+  }
+
+  return wallets;
 }
 
-/**
- * Detect mobile device.
- */
+function getWalletProvider(): any {
+  if (detectedWallets.length > 0) {
+    const mm = detectedWallets.find(w => w.id === 'metamask' || w.name === 'MetaMask');
+    if (mm) return mm.provider;
+    return detectedWallets[0].provider;
+  }
+  const legacy = detectLegacyWallets();
+  if (legacy.length > 0) {
+    const mm = legacy.find(w => w.id === 'metamask');
+    if (mm) return mm.provider;
+    return legacy[0].provider;
+  }
+  return null;
+}
+
 export function isMobile(): boolean {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-/**
- * Get the best provider via EIP-6963, then window.ethereum fallback.
- * Returns the raw EIP-1193 provider object — NOT the proxy.
- */
-function getDesktopProvider(): any {
-  // Re-request in case wallets loaded late
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
-
-  // 1. EIP-6963: use the announced provider directly (bypasses selectExtension)
-  if (discoveredProviders.length > 0) {
-    // Prefer MetaMask if available
-    const mm = discoveredProviders.find(p => p.info.rdns === 'io.metamask');
-    if (mm) return mm.provider;
-    // Otherwise first available
-    return discoveredProviders[0].provider;
-  }
-
-  // 2. window.ethereum.providers array (multiple extensions)
-  const eth = (window as any).ethereum;
-  if (eth?.providers?.length) {
-    const mm = eth.providers.find((p: any) => p.isMetaMask);
-    if (mm) return mm;
-    return eth.providers[0];
-  }
-
-  // 3. Raw window.ethereum (single extension)
-  if (eth) return eth;
-
-  return null;
-}
-
-/**
- * Get mobile provider via MetaMask SDK (deep link to native app).
- */
 async function getMobileProvider(): Promise<any> {
   if (sdkProvider) return sdkProvider;
-
   if (!sdk) {
     sdk = new MetaMaskSDK({
       dappMetadata: { name: 'pmVPN', url: window.location.href },
@@ -107,55 +107,40 @@ async function getMobileProvider(): Promise<any> {
     });
     await sdk.init();
   }
-
   sdkProvider = sdk.getProvider();
-  if (!sdkProvider) throw new Error('MetaMask app not found — install MetaMask');
+  if (!sdkProvider) throw new Error('MetaMask app not found');
   return sdkProvider;
 }
 
-/**
- * Check if any wallet is available.
- * Always returns true on desktop — we attempt connection and let it fail
- * with a clear error rather than hiding the button due to timing issues
- * (EIP-6963 announcements are async, window.ethereum may inject late).
- */
 export function hasMetaMask(): boolean {
-  return true;
+  return true; // Always show button — let connect attempt fail with clear error
 }
 
-/**
- * Check if MetaMask is locked.
- */
 export async function isMetaMaskLocked(): Promise<boolean | null> {
-  const provider = getDesktopProvider();
+  const provider = getWalletProvider();
   if (!provider?._metamask?.isUnlocked) return null;
-  try {
-    return !(await provider._metamask.isUnlocked());
-  } catch {
-    return null;
-  }
+  try { return !(await provider._metamask.isUnlocked()); } catch { return null; }
 }
 
 /**
- * Connect wallet. Triggers MetaMask popup on desktop, deep link on mobile.
- * Then requires mandatory signature to prove identity.
+ * Connect wallet — same flow as allchain.html (proven working)
  */
 export async function connectMetaMask(): Promise<{ address: string; wasLocked: boolean }> {
-  // Reset state
   walletClient = null;
   connectedAddress = null;
   sessionActive = false;
   sessionProof = null;
 
-  // Get provider
   let provider: any;
+
   if (isMobile()) {
     provider = await getMobileProvider();
   } else {
-    // Re-request EIP-6963 and wait briefly for announcements
-    window.dispatchEvent(new Event('eip6963:requestProvider'));
-    await new Promise(r => setTimeout(r, 100));
-    provider = getDesktopProvider();
+    // Ensure detection has run (same as allchain)
+    if (!walletsReady) {
+      await setupEIP6963WalletDetection();
+    }
+    provider = getWalletProvider();
   }
 
   if (!provider) {
@@ -165,8 +150,7 @@ export async function connectMetaMask(): Promise<{ address: string; wasLocked: b
   activeProvider = provider;
   const wasLocked = await isMetaMaskLocked();
 
-  // eth_requestAccounts — triggers the popup
-  // No wallet_revokePermissions before this (breaks some setups)
+  // eth_requestAccounts — triggers popup (chainlist pattern, no revokePermissions before)
   let accounts: string[];
   try {
     accounts = await provider.request({ method: 'eth_requestAccounts' });
@@ -174,19 +158,13 @@ export async function connectMetaMask(): Promise<{ address: string; wasLocked: b
     throw new Error(err?.message || 'Wallet connection rejected');
   }
 
-  if (!accounts?.length) {
-    throw new Error('No accounts returned');
-  }
-
+  if (!accounts?.length) throw new Error('No accounts returned');
   const address = accounts[0].toLowerCase();
 
-  // Create viem wallet client from the announced provider
-  walletClient = createWalletClient({
-    chain: mainnet,
-    transport: custom(provider),
-  });
+  // viem wallet client for signing
+  walletClient = createWalletClient({ chain: mainnet, transport: custom(provider) });
 
-  // Mandatory signature — proves identity
+  // Mandatory signature
   const loginMessage = [
     'pmVPN Login',
     '',
@@ -213,38 +191,24 @@ export async function connectMetaMask(): Promise<{ address: string; wasLocked: b
   sessionActive = true;
   sessionProof = signature;
 
-  // Listen for disconnects
   try {
     provider.on('accountsChanged', (accts: string[]) => {
-      if (!accts.length) {
-        sessionActive = false;
-        connectedAddress = null;
-        sessionProof = null;
-      }
+      if (!accts.length) { sessionActive = false; connectedAddress = null; sessionProof = null; }
     });
   } catch {}
 
   return { address, wasLocked: wasLocked === true };
 }
 
-/**
- * Get connected address (null if no verified session).
- */
 export function getAddress(): string | null {
   if (!sessionActive || !sessionProof) return null;
   return connectedAddress;
 }
 
-/**
- * Check verified session.
- */
 export function isConnected(): boolean {
   return sessionActive && connectedAddress !== null && walletClient !== null && sessionProof !== null;
 }
 
-/**
- * Logout — revoke permissions, clear state.
- */
 export async function disconnect(): Promise<void> {
   sessionActive = false;
   walletClient = null;
@@ -252,12 +216,7 @@ export async function disconnect(): Promise<void> {
   sessionProof = null;
 
   if (activeProvider) {
-    try {
-      await activeProvider.request({
-        method: 'wallet_revokePermissions',
-        params: [{ eth_accounts: {} }],
-      });
-    } catch {}
+    try { await activeProvider.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }); } catch {}
   }
   activeProvider = null;
 
@@ -267,12 +226,13 @@ export async function disconnect(): Promise<void> {
     sdkProvider = null;
   }
 
+  // Reset detection for clean reconnect
+  detectedWallets = [];
+  walletsReady = false;
+
   localStorage.removeItem('pmvpn-wallet-address');
 }
 
-/**
- * Fetch challenge nonce from pmVPN server.
- */
 export async function fetchChallenge(serverUrl: string, address: string): Promise<Challenge> {
   const res = await fetch(`${serverUrl}/challenge?address=${address}`);
   if (!res.ok) {
@@ -282,26 +242,18 @@ export async function fetchChallenge(serverUrl: string, address: string): Promis
   return res.json();
 }
 
-/**
- * Sign server challenge for SSH auth payload.
- */
 export async function signAndBuildPayload(message: string, nonce: string): Promise<string> {
   if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
     throw new Error('No verified session — connect wallet first');
   }
-
   const signature = await walletClient.signMessage({
     account: connectedAddress as `0x${string}`,
     message,
   });
-
   return JSON.stringify({ address: connectedAddress, signature, nonce });
 }
 
-/**
- * Listen for account changes.
- */
 export function onAccountChange(callback: (accounts: string[]) => void): void {
-  const provider = activeProvider || getDesktopProvider();
+  const provider = activeProvider || getWalletProvider();
   try { provider?.on('accountsChanged', callback); } catch {}
 }

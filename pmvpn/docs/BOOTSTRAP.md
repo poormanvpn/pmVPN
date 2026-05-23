@@ -16,6 +16,24 @@ When you have basic access to a remote machine (SSH, SFTP, or even just a shell)
 
 All methods use OpenSSH conventions where possible. The bootstrap is legitimate, auditable, and reversible.
 
+## Jail warden — three install paths
+
+The privilege-drop machinery depends on a host-side script
+(`/usr/local/bin/pmvpn-create-user.sh`). It provisions the jailed Linux
+user, applies the disk quota, writes `~/.ssh/pmvpn_wallet`, and appends a
+tagged ed25519 entry to `~/.ssh/authorized_keys`. Three ways to install it:
+
+| Mode | Trigger | Source |
+|---|---|---|
+| **Self-inject on boot** | Server starts as root and the file is missing/old | `server/src/utils/warden.ts` reads `server/scripts/*.sh` from the bundle |
+| **Bootstrap installer** | `bash ~/.pmvpn/install.sh` (created by client bootstrap, run with sudo) | Cloned `pmvpn/server/scripts/` — `install -m 755` to `/usr/local/bin/` |
+| **Manual interactive CLI** | Ops runs `pmvpn-warden add` (or `list/show/remove/rotate`) | `server/scripts/pmvpn-warden.sh` (installed alongside the warden) |
+
+The wallet binding in `~/.ssh/pmvpn_wallet` is then enforced by
+`server/src/auth/provision.ts` on every subsequent SSH or WS auth — a wallet
+that does not own the account is rejected even if `~/.pmvpn/wallets.json`
+points the username at a different address.
+
 ---
 
 ## Method 1: User-Level Bootstrap (No Admin Required)

@@ -1,0 +1,5 @@
+{
+  "name": "@pmvpn/modules",
+  "private": true,
+  "type": "module"
+}

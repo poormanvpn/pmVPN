@@ -8,3 +8,8 @@ pnpm-lock.yaml
 *.jpeg
 *.zip
 .vite/
+
+# tsc-emitted shadow files (modules/ has no outDir, lives next to .ts)
+pmvpn/modules/**/*.js
+pmvpn/modules/**/*.d.ts
+pmvpn/modules/**/*.js.map

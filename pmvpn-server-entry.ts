@@ -2,6 +2,7 @@
 // This wrapper ensures proper module resolution for the enhanced pmVPN server
 
 import { logger } from './pmvpn/server/src/utils/logger.js';
+import { ensureWardenInstalled } from './pmvpn/server/src/utils/warden.js';
 import { loadOrGenerateHostKey } from './pmvpn/server/src/utils/hostkey.js';
 import { loadWalletMap } from './pmvpn/server/src/config/wallets.js';
 import { createSSHServer } from './pmvpn/server/src/ssh/server.js';
@@ -24,6 +25,9 @@ import { createFleetMetrics } from './pmvpn/modules/fleet/metrics.js';
 
 async function main(): Promise<void> {
   logger.info({ version: PROTOCOL_VERSION }, 'PMVPN server starting with modular architecture');
+
+  // Self-inject jail warden scripts (no-op unless root + scripts present)
+  ensureWardenInstalled();
 
   // Load Ed25519 host key
   const hostKey = loadOrGenerateHostKey();

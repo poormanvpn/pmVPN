@@ -636,7 +636,8 @@ export function createApp(): HTMLElement {
     } catch (e: any) {
       metamaskBtn.disabled = false;
       metamaskBtn.innerHTML = '🦊 Connect MetaMask';
-      log(e.message, 'error');
+      console.error('pmVPN wallet connect error:', e);
+      log(e.message || String(e), 'error');
     }
   }
 
@@ -840,12 +841,32 @@ export function createApp(): HTMLElement {
 
       log(`${conn.name}: connecting ws://${conn.host}:${wsPort}...`, 'info');
 
-      hostTerm.connectWs(`ws://${conn.host}:${wsPort}`, payload, (ok, user, error) => {
+      hostTerm.connectWs(`ws://${conn.host}:${wsPort}`, payload, (ok, user, error, info) => {
         if (ok) {
           conn.status = 'connected';
           setStatus('connected');
           renderConnections();
           log(`${conn.name}: live terminal as ${user}`, 'success');
+
+          if (info?.newUser) {
+            // First-time provisioning — the host warden created the jailed user,
+            // wrote the ~/.ssh/pmvpn_wallet binding, and tagged authorized_keys.
+            const role = info.role || 'user';
+            const quota = role === 'admin' ? '1 GB / 50K files' : '10 MB / 1K files';
+            const banner = document.createElement('div');
+            banner.className = 'pmvpn-provisioning-banner';
+            banner.innerHTML = `
+              <div style="background: rgba(63, 185, 80, 0.12); border: 1px solid rgba(63, 185, 80, 0.4); border-radius: 8px; padding: 12px 16px; margin: 8px 0; color: #b6f0c0; font-size: 13px; line-height: 1.5;">
+                <strong style="color: #3fb950;">First login — host provisioning complete.</strong><br />
+                Linux user <code>${user}</code> (${role}) created with quota ${quota}.<br />
+                Wallet binding written to <code>~/.ssh/pmvpn_wallet</code>; tagged ed25519 key added to <code>~/.ssh/authorized_keys</code>.<br />
+                <button style="margin-top: 6px; background: none; border: 1px solid rgba(63,185,80,0.5); color: #b6f0c0; padding: 2px 10px; border-radius: 4px; cursor: pointer;">dismiss</button>
+              </div>
+            `;
+            banner.querySelector('button')?.addEventListener('click', () => banner.remove());
+            termEl.parentElement?.insertBefore(banner, termEl);
+            log(`${conn.name}: provisioned as ${role} (${quota})`, 'info');
+          }
 
           // Create file browser and share panel for this host
           const fb = createFileBrowser(hostTerm, log);

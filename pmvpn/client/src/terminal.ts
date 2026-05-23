@@ -10,7 +10,7 @@ export interface TerminalInstance {
   fitAddon: FitAddon;
   connId: string;
   mount: (el: HTMLElement) => void;
-  connectWs: (url: string, authPayload: string, onAuth: (ok: boolean, user?: string, error?: string) => void) => void;
+  connectWs: (url: string, authPayload: string, onAuth: (ok: boolean, user?: string, error?: string, info?: { newUser?: boolean; role?: string }) => void) => void;
   sendSftp: (cmd: string, path: string, data?: string) => Promise<any>;
   disconnect: () => void;
   destroy: () => void;
@@ -78,7 +78,7 @@ export function createTerminal(): TerminalInstance {
   function connectWs(
     url: string,
     authPayload: string,
-    onAuth: (ok: boolean, user?: string, error?: string) => void,
+    onAuth: (ok: boolean, user?: string, error?: string, info?: { newUser?: boolean; role?: string }) => void,
   ): void {
     disconnect();
     ws = new WebSocket(url);
@@ -95,7 +95,7 @@ export function createTerminal(): TerminalInstance {
 
       if (msg.type === 'auth') {
         if (msg.ok) {
-          onAuth(true, msg.user);
+          onAuth(true, msg.user, undefined, { newUser: msg.newUser === true, role: msg.role });
           // Terminal input → server
           terminal.onData((data) => {
             if (ws?.readyState === WebSocket.OPEN) {

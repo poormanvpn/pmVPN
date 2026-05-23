@@ -214,11 +214,31 @@ The authentication flow replaces SSH keys with wallet signatures. A fresh nonce 
        nonce                                    Match against wallet map
      })                                         Delete nonce (single-use)
                                                 Map wallet to system username
-     ◄──────────  AUTH_SUCCESS                  Spawn PTY shell via node-pty
+     ◄──────────  AUTH_SUCCESS                  Provision Linux user via warden
+                                                 Verify ~/.ssh/pmvpn_wallet binding
+                                                 Spawn PTY as uid/gid of jailed user
 
   4. Terminal I/O flows through SSH channel
-     xterm.js ←→ Tauri events ←→ russh ←→ ssh2 ←→ node-pty ←→ bash
+     xterm.js ←→ Tauri events ←→ russh ←→ ssh2 ←→ node-pty ←→ bash (as wXXXX)
 ```
+
+### Jail warden + privilege drop
+
+On first login the server invokes `/usr/local/bin/pmvpn-create-user.sh`
+(self-injected from `server/scripts/` on boot, or installed by the bootstrap
+flow, or run by an admin via `pmvpn-warden add`). The warden:
+
+- creates `wXXXXXXXX` with locked password (signature is the only credential)
+- `chmod 700` on the home, restricted `~/.profile`, blocked cron + ptrace
+- applies a per-tier disk quota (admin 1GB · user 10MB)
+- writes the wallet binding to `~/.ssh/pmvpn_wallet` (verified on every
+  subsequent auth — wrong wallet → rejected)
+- generates an ed25519 keypair tagged `pmvpn:<wallet>:v1` and adds the
+  pubkey to `~/.ssh/authorized_keys` (gives stock OpenSSH continuity)
+
+The SSH PTY, exec, and SFTP sessions then run under the user's real uid/gid.
+SFTP runs in a forked worker that `setuid()`s before any filesystem access,
+so Linux ownership and quota actually apply.
 
 The [crypto-ssh module](docs/CRYPTO-SSH.md) extends this with native SSH public key authentication via [HKDF](https://tools.ietf.org/html/rfc5869)-derived Ed25519 keys — eliminating the password-field workaround entirely for clients that support it.
 
@@ -236,7 +256,7 @@ Base port configurable via `PMVPN_BASE_PORT` (default `2200`). All SSH ports req
 | **+3** | **Challenge API** | HTTP | Nonce endpoint. Client fetches challenge here before SSH auth. Node built-in `http.createServer` — no Express |
 | **+4** | **WS Bridge** | [WebSocket](https://www.rfc-editor.org/rfc/rfc6455) | Browser terminal + SFTP file browser. Wallet-authenticated WebSocket. Live PTY shell + file operations |
 | **+5** | **File Sync** | SSH2 | Bidirectional file synchronization between client and server |
-| **+6** | **Claude AI** | SSH2 | Dedicated channel for AI assistant proxy. Isolates Claude traffic from general shell use |
+| **+6** | **Provider Gateway** | HTTP | Cloud-provider command gateway (Hostinger MCP, fleet ops). Wallet-signed request body. Doubles as the Claude Remote Control auth point |
 | **+7** | **Admin** | HTTP | Server health, active sessions, connection metrics |
 
 ---

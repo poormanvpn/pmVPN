@@ -119,7 +119,22 @@ sudo systemctl status pmvpn
 sudo journalctl -u pmvpn -f
 ```
 
-**Note:** The server needs root (or sudo capability) to spawn shells as different system users via node-pty. For single-user setups, run as the target user directly.
+**Note:** The server runs as root so it can drop privileges into the jailed
+user when a wallet connects. On first boot it self-injects
+`/usr/local/bin/pmvpn-create-user.sh` (the jail warden) and
+`/usr/local/bin/pmvpn-warden` (the admin CLI) from `server/scripts/`. Every
+authenticated PTY, exec, and SFTP session then runs under the user's real
+uid/gid — not as root. For single-operator dev setups, run the server
+unprivileged as the target user; isolation falls back to path-sandboxed
+operations only.
+
+To provision a wallet manually (without it logging in first):
+
+```bash
+sudo pmvpn-warden add        # interactive: wallet, role, confirm
+sudo pmvpn-warden list       # show all managed users
+sudo pmvpn-warden rotate 0xabc... # rotate the user's ed25519 key
+```
 
 ---
 
