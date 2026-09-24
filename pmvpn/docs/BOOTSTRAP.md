@@ -176,10 +176,18 @@ chmod 700 ~/.ssh
 
 ### authorized_keys Self-Protection
 
-pmVPN adds a marker comment to its entries in `authorized_keys`:
+pmVPN adds a marker comment to its entries in `authorized_keys`. Three tag
+shapes exist; all start with `pmvpn:<wallet>` so the revoke recipes below cover them:
+
+| Tag | Written by | Status |
+|---|---|---|
+| `pmvpn:<wallet>:k<i>:<slug>` | `POST /keyring` (server mirror), `pmvpn-warden keyring-install` | **current** — one line per port index, with per-index options |
+| `pmvpn:<wallet>:v1` | `pmvpn-create-user.sh` jail warden | legacy fallback key generated on the host; kept for continuity |
+| `pmvpn:<wallet>:<date>` | client "Deploy SSH Key" before 0.1.1 | retired — the tool now deploys the ring's `k0` line |
 
 ```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG... pmvpn:<wallet-address>:<timestamp>
+restrict,command="internal-sftp" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG... pmvpn:0x…:k1:sftp
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG... pmvpn:0x…:v1
 ```
 
 **Rules:**

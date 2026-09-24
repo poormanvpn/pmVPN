@@ -115,7 +115,7 @@ curl http://localhost:2203/status
 Expected response:
 
 ```json
-{ "version": "0.1.0", "uptime": 42, "wallets": 1 }
+{ "version": "0.1.1", "uptime": 42, "wallets": 1 }
 ```
 
 ### 1.6 Firewall
@@ -606,3 +606,20 @@ import('viem/accounts').then(async ({ privateKeyToAccount }) => {
 - **First connection trust.** The first time you connect to a new server, verify the Ed25519 host key fingerprint out-of-band if possible. After that, the client remembers it (TOFU — Trust On First Use).
 
 - **The test private key** (`0xac0974...`) is Hardhat's well-known account #0. Never use it for anything with real value. It is public.
+
+## Keyring — use stock ssh, sftp and paramiko
+
+After connecting once with the wallet, open the **Keys** tab and click
+**Derive & Enrol**. The wallet signs `PMVPN-KEYRING:v1:<host fingerprint>` and the
+client derives eight keys, one per port, enrolling the public halves with the
+server. **Download bundle** saves `pmvpn-keyring-<alias>.sh`; run it once:
+
+```bash
+sh pmvpn-keyring-<alias>.sh
+ssh  <alias>-shell          # port +0 with k0
+sftp <alias>-sftp           # port +1 with k1
+ssh  <alias>-exec uptime    # port +2 with k2
+```
+
+Each key works on its own port only. Revoke from the Keys tab or with
+`pmvpn-warden keyring-remove <wallet>`. Details: [KEYRING.md](KEYRING.md).

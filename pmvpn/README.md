@@ -3,7 +3,7 @@
 <p align="center"><em>Poor Man's VPN — Wallet-Authenticated Remote Access</em></p>
 
 <p align="center">
-  <strong>v0.1.0</strong> · Alpha · MIT Server · GPL Client
+  <strong>v0.1.1</strong> · Alpha · MIT Server · GPL Client
 </p>
 
 <p align="center">
@@ -222,6 +222,17 @@ The authentication flow replaces SSH keys with wallet signatures. A fresh nonce 
      xterm.js ←→ Tauri events ←→ russh ←→ ssh2 ←→ node-pty ←→ bash (as wXXXX)
 ```
 
+### Keyring — publickey for everything else
+
+The JSON-password method needs a pmVPN client. For stock `ssh`, `sftp`, `rsync`,
+`git` and paramiko the wallet signs one more message, `PMVPN-KEYRING:v1:<host
+fingerprint>`, and the client derives eight Ed25519 keys from that signature
+(HKDF-SHA256, one context per port). The public halves are enrolled with
+`POST /keyring` behind the same challenge → viem → `provisionWallet` path; the
+private halves stay on the client as openssh-key-v1 files. Every SSH port then
+also accepts `publickey`, but only for the key whose index equals the port offset:
+`k1-sftp` opens +1 and is refused on +0, +2, +4. See [docs/KEYRING.md](docs/KEYRING.md).
+
 ### Jail warden + privilege drop
 
 On first login the server invokes `/usr/local/bin/pmvpn-create-user.sh`
@@ -235,6 +246,9 @@ flow, or run by an admin via `pmvpn-warden add`). The warden:
   subsequent auth — wrong wallet → rejected)
 - generates an ed25519 keypair tagged `pmvpn:<wallet>:v1` and adds the
   pubkey to `~/.ssh/authorized_keys` (gives stock OpenSSH continuity)
+- after `POST /keyring`, mirrors the wallet's ring as `pmvpn:<wallet>:k<i>:<slug>`
+  lines with per-index options (`restrict`, `internal-sftp`, `port-forwarding`);
+  `pmvpn-warden keyring-install|keyring-remove` do the same by hand
 
 The SSH PTY, exec, and SFTP sessions then run under the user's real uid/gid.
 SFTP runs in a forked worker that `setuid()`s before any filesystem access,
@@ -298,7 +312,7 @@ pnpm run tauri:dev
 ```bash
 # Server health
 curl http://localhost:2207/status
-# → { "version": "0.1.0", "uptime": 42, "wallets": 1 }
+# → { "version": "0.1.1", "uptime": 42, "wallets": 1 }
 
 # Request a challenge
 curl "http://localhost:2203/challenge?address=0xYourAddr"
@@ -549,7 +563,9 @@ pmvpn/
 │   │   │   └── wallets.ts          Wallet → user mapping loader
 │   │   ├── auth/
 │   │   │   ├── verifier.ts         viem verifyMessage()
-│   │   │   └── challenge.ts        Nonce store (60s TTL, single-use)
+│   │   │   ├── challenge.ts        Nonce store (60s TTL, single-use)
+│   │   │   ├── provision.ts        Wallet → jailed user, binding check
+│   │   │   └── keyring.ts          Enrolled rings, blob index, authorized_keys mirror
 │   │   ├── ssh/
 │   │   │   ├── server.ts           ssh2 factory — hardened algorithms
 │   │   │   ├── handler.ts          Auth dispatch + session lifecycle
@@ -563,9 +579,10 @@ pmvpn/
 │   │   │   ├── client.ts           Tunnel client (local proxy)
 │   │   │   └── firewall.ts         iptables NAT for transparent proxy
 │   │   ├── api/
-│   │   │   └── challenge.ts        HTTP nonce endpoint
+│   │   │   ├── challenge.ts        HTTP nonce endpoint, /status, /diagnostics
+│   │   │   └── keyring.ts          POST/GET/DELETE /keyring
 │   │   └── utils/
-│   │       ├── hostkey.ts          Ed25519 via ssh-keygen
+│   │       ├── hostkey.ts          Ed25519 via ssh-keygen, fingerprint
 │   │       └── logger.ts           pino structured logging
 │   ├── .env.example
 │   └── Dockerfile
@@ -575,8 +592,12 @@ pmvpn/
 ├── crypto-ssh/                      MIT License — Key derivation module
 │   ├── src/
 │   │   ├── index.ts                 Module exports
+│   │   ├── keyring.ts               Signature → 8 port-scoped keys, openssh-key-v1, bundle (isomorphic)
 │   │   ├── wallet-to-ssh.ts         Wallet → SSH: HKDF, native secp256k1, agent bridge
 │   │   └── ssh-to-wallet.ts         SSH → Wallet: HKDF, HD wallet, service wallet, hardware
+│   ├── bin/pmvpn-keyring.ts         CLI: message · derive · enrol
+│   ├── scripts/verify-paramiko.py   Prove a ring key from paramiko (and the wrong-port refusal)
+│   └── test/keyring.test.ts         Fixed vector, ssh-keygen cross-check
 │
 ├── shared/                          MIT License
 │   └── src/
@@ -591,6 +612,7 @@ pmvpn/
 │   ├── CLIENT.md                   PARSEC module documentation
 │   ├── ANDROID.md                  Android build and install
 │   ├── CRYPTO-SSH.md               Bidirectional key derivation
+│   ├── KEYRING.md                  One signature → eight port-scoped keys
 │   ├── REMOTE-CONTROL.md           Claude Remote Control
 │   └── DEVELOPMENT.md              Roadmap and phase status
 │
@@ -615,9 +637,14 @@ Every dependency is a trust decision. pmVPN minimizes the surface.
 
 No [Express](https://expressjs.com/). No dotenv. HTTP via [Node built-in](https://nodejs.org/api/http.html). Config via environment variables.
 
-### Crypto-SSH — 0 packages
+### Crypto-SSH — 2 packages
 
-Zero dependencies. Uses only [`node:crypto`](https://nodejs.org/api/crypto.html) built-in module. Implements [HKDF (RFC 5869)](https://tools.ietf.org/html/rfc5869) and [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) from scratch.
+| Package | Author | License | Purpose |
+|---------|--------|---------|---------|
+| [@noble/curves](https://github.com/paulmillr/noble-curves) | [Paul Miller](https://github.com/paulmillr) | MIT | Ed25519 for the keyring — runs in the browser, the same code viem ships |
+| [@noble/hashes](https://github.com/paulmillr/noble-hashes) | [Paul Miller](https://github.com/paulmillr) | MIT | SHA-256 and HKDF for the keyring |
+
+The wallet↔SSH derivation paths still use only [`node:crypto`](https://nodejs.org/api/crypto.html) and implement [HKDF (RFC 5869)](https://tools.ietf.org/html/rfc5869) and [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) from scratch; the keyring is isomorphic so the client can derive without a Node runtime.
 
 ### Client — Rust
 
@@ -647,6 +674,7 @@ Zero dependencies. Uses only [`node:crypto`](https://nodejs.org/api/crypto.html)
 | **[CLIENT.md](docs/CLIENT.md)** | Standalone client + PARSEC module — UI layout, WebSocket connection, tabs, Tauri commands, MetaMask auth flow |
 | **[ANDROID.md](docs/ANDROID.md)** | Android build + install — build environment (6 steps), APK build, install on phone, browser fallback |
 | **[CRYPTO-SSH.md](docs/CRYPTO-SSH.md)** | Bidirectional key derivation — wallet-to-SSH ([HKDF](https://tools.ietf.org/html/rfc5869), native secp256k1, agent bridge), SSH-to-wallet ([BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki) HD wallet, service wallet, hardware tokens), [csshd](https://github.com/cryptoAGI/csshd) heritage |
+| **[KEYRING.md](docs/KEYRING.md)** | One wallet signature → eight port-scoped Ed25519 keys; publickey for OpenSSH, sftp, rsync, paramiko; bundle, CLI, revoke |
 | **[BLOCKTALK.md](docs/BLOCKTALK.md)** | blocktalk v2 — wallet-gated communication rooms (private, boardroom, dojo, citadel), [XMTP](https://xmtp.org/) integration with [MLS (RFC 9420)](https://www.rfc-editor.org/rfc/rfc9420) encryption, self-hosted lightweight node, AI agent participation, throttle controls |
 | **[CITADEL.md](docs/CITADEL.md)** | Citadel — blockchain-permanent token-gated rooms, on-chain registry ([Algorand](https://algorand.co/) + EVM), 5 gate types ([ERC-721](https://eips.ethereum.org/EIPS/eip-721)/[1155](https://eips.ethereum.org/EIPS/eip-1155)/[20](https://eips.ethereum.org/EIPS/eip-20)/[ASA](https://developer.algorand.org/docs/get-details/asa/)), room resurrection, distributed social networking |
 | **[REMOTE-CONTROL.md](docs/REMOTE-CONTROL.md)** | Claude Remote Control — AI-powered server administration from phone, tablet, or any browser |

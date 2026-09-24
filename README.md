@@ -66,7 +66,7 @@ WALLET_USER_MAP="0xYourWalletAddress:username" pnpm run dev
 
 ```bash
 curl http://localhost:2203/status
-# → { "version": "0.1.0", "uptime": 0, "wallets": 1 }
+# → { "version": "0.1.1", "uptime": 0, "wallets": 1 }
 ```
 
 Eight ports bind on startup. Ed25519 host key auto-generated. Ready to accept wallet-authenticated connections.
@@ -90,6 +90,8 @@ Eight ports bind on startup. Ed25519 host key auto-generated. Ready to accept wa
 | +6 | **Claude** | Dedicated AI assistant channel. Run Claude on remote machines |
 | +7 | **Admin** | Server health, active sessions, connection metrics |
 
+One signature also derives a **[keyring](pmvpn/docs/KEYRING.md)**: eight Ed25519 keys, one per port, each accepted only on its own port. Stock `ssh`, `sftp`, `rsync`, `git` and paramiko log in with them — no pmVPN client in the loop, and a leaked key opens one service, never the machine.
+
 ---
 
 <div align="center">
@@ -104,6 +106,9 @@ Eight ports bind on startup. Ed25519 host key auto-generated. Ready to accept wa
     │  "PMVPN:<nonce>:<timestamp>"         │  password = { address,                 │  PTY
     │  signed with secp256k1               │    signature, nonce }                  │  spawned
     │  key never leaves vault              │  single-use nonce                      │  as user
+
+  Wallet ────── sign "PMVPN-KEYRING:v1:<host fp>" ──► 8 Ed25519 keys ──► POST /keyring ──► publickey auth
+    │  one signature per server              │  HKDF, index = port          │  key i valid on port +i only
 ```
 
 No blockchain. No RPC. No external service. `viem.verifyMessage()` recovers the signer address from the signature using pure local elliptic curve math. The nonce is 32 random bytes with a 60-second lifetime, deleted after one use.
@@ -159,10 +164,11 @@ Thank [OpenBSD](https://www.openssh.com/).
 | **[PM Protocol Specification](pmvpn/docs/PROTOCOL.md)** | Binary wire format, command codes, channel lifecycle, flow control |
 | **[Deployment Guide](pmvpn/docs/DEPLOYMENT.md)** | Production: systemd, firewall, wallet map, monitoring |
 | **[Bootstrap Guide](pmvpn/docs/BOOTSTRAP.md)** | Self-installation, zero-SSH containers, key exchange |
+| **[Keyring](pmvpn/docs/KEYRING.md)** | One signature → eight port-scoped keys; OpenSSH, sftp, rsync, paramiko; bundle, CLI, revoke |
 | **[Client Module](pmvpn/docs/CLIENT.md)** | Standalone + PARSEC, WebSocket, Terminal/Files/Share tabs |
 | **[Android Guide](pmvpn/docs/ANDROID.md)** | Build environment, APK build, phone install, browser fallback |
 | **[MetaMask Auth](pmvpn/docs/metamaskbestpractice.md)** | Disconnect standard practice, lock detection, mandatory signature |
-| **[Development Roadmap](pmvpn/docs/DEVELOPMENT.md)** | 9 of 10 phases complete, 41 commits |
+| **[Development Roadmap](pmvpn/docs/DEVELOPMENT.md)** | 9.10 of 10 phases complete · [CHANGELOG](CHANGELOG.md) |
 
 ---
 

@@ -287,7 +287,7 @@ nohup env PMVPN_BASE_PORT=8200 node dist/index.js > ~/.pmvpn/server.log 2>&1 &
 
 # 8. Verify it's running
 curl -s http://localhost:8203/status
-# Should return: {"version":"0.1.0","uptime":...,"wallets":1}
+# Should return: {"version":"0.1.1","uptime":...,"wallets":1}
 
 # 9. Set up auto-start (no root)
 (crontab -l 2>/dev/null; echo "@reboot cd ~/pmvpn-server && PMVPN_BASE_PORT=8200 node dist/index.js >> ~/.pmvpn/server.log 2>&1") | crontab -

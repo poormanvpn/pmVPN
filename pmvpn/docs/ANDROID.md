@@ -239,11 +239,11 @@ ls -lh src-tauri/gen/android/app/build/outputs/apk/universal/debug/
 
 ```bash
 # Create a release with the APK + desktop builds
-gh release create v0.1.0 \
+gh release create v0.1.1 \
   "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk#pmVPN Android APK" \
-  "src-tauri/target/release/bundle/deb/pmVPN_0.1.0_amd64.deb#pmVPN Linux .deb" \
+  "src-tauri/target/release/bundle/deb/pmVPN_0.1.1_amd64.deb#pmVPN Linux .deb" \
   --repo poormanvpn/pmVPN \
-  --title "pmVPN v0.1.0" \
+  --title "pmVPN v0.1.1" \
   --notes "Wallet-authenticated remote access. Eight ports. One wallet.
 
 - **Android APK**: download and install on your phone
@@ -474,8 +474,8 @@ sudo ufw allow 2200:2207/tcp
 | File | Location | Size |
 |------|----------|------|
 | Linux binary | `src-tauri/target/release/pmvpn` | ~13MB |
-| Linux .deb | `src-tauri/target/release/bundle/deb/pmVPN_0.1.0_amd64.deb` | ~4.3MB |
-| Linux .rpm | `src-tauri/target/release/bundle/rpm/pmVPN-0.1.0-1.x86_64.rpm` | ~4.3MB |
+| Linux .deb | `src-tauri/target/release/bundle/deb/pmVPN_0.1.1_amd64.deb` | ~4.3MB |
+| Linux .rpm | `src-tauri/target/release/bundle/rpm/pmVPN-0.1.1-1.x86_64.rpm` | ~4.3MB |
 | Android APK | `src-tauri/gen/android/.../app-universal-debug.apk` | ~8MB |
 
 ## Desktop: How to Run
@@ -483,7 +483,7 @@ sudo ufw allow 2200:2207/tcp
 ### Install the .deb (Debian/Ubuntu)
 
 ```bash
-sudo dpkg -i src-tauri/target/release/bundle/deb/pmVPN_0.1.0_amd64.deb
+sudo dpkg -i src-tauri/target/release/bundle/deb/pmVPN_0.1.1_amd64.deb
 # Run from applications menu or:
 pmvpn
 ```

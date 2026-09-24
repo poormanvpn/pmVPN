@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-03-28 | Status: Alpha | 9.8 of 10 phases complete | 51 commits
+Updated: 2026-09-23 | Status: Alpha · v0.1.1 | 9.10 of 10 phases complete | see [CHANGELOG](../../CHANGELOG.md)
 
 ---
 
@@ -225,6 +225,18 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] SSH SFTP subsystem (port +1) — stock `sftp`/`scp` clients work via wallet auth
 - [x] Wallet binding (`~/.ssh/pmvpn_wallet`) — auth rejected on mismatch
 - [x] Derived ed25519 in `~/.ssh/authorized_keys` (`pmvpn:<wallet>:v1`) for OpenSSH fallback
+
+### Phase 9.10: Keyring ✅ (2026-09-23, v0.1.1)
+
+- [x] `crypto-ssh/src/keyring.ts` — one wallet signature → N port-scoped Ed25519 keys (HKDF, isomorphic)
+- [x] openssh-key-v1 encoder; `ssh-keygen -y` / `-lf` cross-check in `pnpm test`
+- [x] Server `publickey` auth on every SSH port, `key.index === port offset` enforced
+- [x] `POST/GET/DELETE /keyring`, `/status` exposes `hostFingerprint` · `basePort` · `keyringSize`
+- [x] `authorized_keys` mirror with per-index options; `pmvpn-warden keyring-install|keyring-remove`
+- [x] Self-extracting bundle (keys + ssh_config + known_hosts); client Keys tab; `pmvpn-keyring` CLI
+- [x] Verified end to end with OpenSSH 8.9 (`ssh`, `sftp`) and paramiko 3.5, including wrong-port refusal
+- [x] Fixed: crypto-ssh `require()` under ESM; SFTP empty-dir NAME reply and channel close (stock `sftp` hung)
+- [ ] PARSEC: Rust keyring in bankon_vault + russh publickey connect (tracked in parsec-wallet)
 
 ### Phase 10: Hardening (Future)
 

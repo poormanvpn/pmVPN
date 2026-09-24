@@ -260,6 +260,8 @@ See `pmvpn/docs/PROTOCOL.md` for complete wire format specification.
 - **`pmvpn/docs/GUIDE-LAPTOP-TO-DESKTOP.md`**: Laptop → desktop over LAN
 - **`pmvpn/docs/BOOTSTRAP.md`**: Self-installation methods
 - **`pmvpn/docs/DEVELOPMENT.md`**: Roadmap and status
+- **`pmvpn/docs/KEYRING.md`**: One signature → eight port-scoped keys; publickey auth for OpenSSH/paramiko
+- **`CHANGELOG.md`**: Release notes; bump `PROTOCOL_VERSION` in both `shared/src/constants.ts` and `server/src/shared.ts`
 - **`TOKEN_GATED_ACCESS_DESIGN.md`**: Token-gated access control architecture
 - **`SIGNATURE_SECURITY_ANALYSIS.md`**: Security limitations and hardening
 - **`HANDHELD_VPS_COORDINATION.md`**: Mobile-first fleet coordination design
@@ -299,3 +301,14 @@ The remote control system is built on extensible modules:
 - **Fleet modules**: Server discovery, grouping, scaling, health monitoring
 - **Deployment modules**: Rolling deployments, blue-green, canary releases
 - **Custom modules**: User-defined workflows and integrations
+
+## Keyring rules
+
+- One key per port: keyring index *i* is accepted only on port base+*i*. Never
+  relax this in `ssh/handler.ts`; add a new index instead.
+- The derivation (`crypto-ssh/src/keyring.ts`) is a wire contract shared with
+  PARSEC's Rust implementation. Changing the message prefix, salt or info format
+  is a `KEYRING_VERSION` bump, not an edit.
+- The server stores public keys only (`~/.pmvpn/keyrings/`). Private halves exist
+  on the client and inside the bundle the participant downloads.
+- `authorized_keys` mirror: touch only lines tagged `pmvpn:<wallet>:k`.

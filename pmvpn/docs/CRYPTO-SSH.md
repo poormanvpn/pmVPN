@@ -1111,15 +1111,22 @@ Input (wallet private key):
 
 HKDF parameters:
   Hash:  SHA-256
-  Salt:  "pmvpn-crypto-ssh" (17 bytes, UTF-8)
+  Salt:  "pmvpn-crypto-ssh" (16 bytes, UTF-8)
   Info:  "ed25519-derivation:ssh-auth" (27 bytes, UTF-8)
   Length: 32 bytes
 
-Expected HKDF Extract (PRK):
-  (compute: HMAC-SHA256(key=salt, data=IKM))
+Expected HKDF Expand output (OKM) — the Ed25519 seed:
+  3ac0faa44c4c734ece0e9136165e428088c75d8cba3b967c7c004305c6f66db8
 
-Expected HKDF Expand output (OKM):
-  (32 bytes — this becomes the Ed25519 seed)
+Expected public key (authorized_keys blob):
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK4ukv2zdF8EBqHYd54pCMKV6jJdWU4zh10rfY5ZePmK pmvpn:0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266:ssh-auth
+
+Expected fingerprint (ssh-keygen -lf):
+  SHA256:DLvSoY9kndDUrb1nNqGREzoAcSIB5PKGM55hsPh7zN0
+
+Pinned in crypto-ssh/test/keyring.test.ts (legacy path). Since 0.1.1 the private
+key is also emitted as unencrypted openssh-key-v1 (`privateKeyOpenSSH`), which is
+what OpenSSH and paramiko load; the PKCS#8 PEM stays for Node and ssh2.
 
 Verification: any implementation producing the same 32-byte OKM from the same
 inputs is compatible. The Ed25519 keypair generated from that seed will be
