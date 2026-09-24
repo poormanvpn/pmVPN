@@ -139,7 +139,9 @@ export function attachSftpSubsystem(
   sftpStream.on('READDIR', (reqId, handleBuf) => {
     const h = getHandle(handleBuf);
     if (!h || h.kind !== 'dir') return sftpStream.status(reqId, STATUS_CODE.FAILURE);
-    if (h.served) return sftpStream.status(reqId, STATUS_CODE.EOF);
+    // An empty NAME reply is not valid SFTP; OpenSSH's sftp client hangs on it.
+    // Empty directory → EOF straight away.
+    if (h.served || h.entries.length === 0) return sftpStream.status(reqId, STATUS_CODE.EOF);
     h.served = true;
     const names = h.entries.map((e: any) => ({
       filename: e.name,

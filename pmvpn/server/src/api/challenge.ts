@@ -9,6 +9,9 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir, cpus, totalmem, freemem, loadavg, networkInterfaces, release, hostname as osHostname, type as osType, arch } from 'node:os';
 import { createChallenge } from '../auth/challenge.js';
+import { handleKeyringRoute } from './keyring.js';
+import { hostKeyFingerprint } from '../utils/hostkey.js';
+import { BASE_PORT, KEYRING_SIZE } from '../config/ports.js';
 import { logger } from '../utils/logger.js';
 import { getActiveSessions, getSessionsForWallet, getSessionCounts } from '../utils/sessions.js';
 import { PROTOCOL_VERSION } from '../shared.js';
@@ -30,16 +33,17 @@ function sendJSON(res: ServerResponse, status: number, body: unknown): void {
  *
  * Routes:
  *   GET /challenge?address=0x...  → { nonce, message, expires }
- *   GET /status                   → { version, uptime }
+ *   GET /status                   → { version, uptime, wallets, basePort, keyringSize, hostFingerprint }
+ *   POST/GET/DELETE /keyring      → api/keyring.ts
  */
 export function createChallengeServer(walletMap: WalletMap) {
   const startTime = Date.now();
 
-  return createServer((req: IncomingMessage, res: ServerResponse) => {
+  return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // CORS headers for Tauri webview
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Wallet');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -47,6 +51,14 @@ export function createChallengeServer(walletMap: WalletMap) {
     }
 
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+
+    // /keyring — enrol, inspect, revoke the wallet's port-scoped key ring
+    try {
+      if (await handleKeyringRoute(req, res, url, walletMap, sendJSON)) return;
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'keyring route failed');
+      return sendJSON(res, 500, { error: 'keyring unavailable' });
+    }
 
     // GET /challenge?address=0x...
     if (req.method === 'GET' && url.pathname === '/challenge') {
@@ -87,10 +99,15 @@ export function createChallengeServer(walletMap: WalletMap) {
 
     // GET /status
     if (req.method === 'GET' && url.pathname === '/status') {
+      let hostFingerprint: string | null = null;
+      try { hostFingerprint = hostKeyFingerprint(); } catch {}
       return sendJSON(res, 200, {
         version: PROTOCOL_VERSION,
         uptime: Math.floor((Date.now() - startTime) / 1000),
         wallets: walletMap.size,
+        basePort: BASE_PORT,
+        keyringSize: KEYRING_SIZE,
+        hostFingerprint,
       });
     }
 

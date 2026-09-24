@@ -8,13 +8,16 @@
 //
 // Heritage: cryptoAGI/csshd — the world's first wallet-login SSH server
 
-import { createHash, createHmac, generateKeyPairSync, createSign, createVerify } from 'crypto';
+import { createHash, createHmac, createPrivateKey, createPublicKey, randomBytes } from 'node:crypto';
+import { encodeOpenSSHPrivateKey } from './keyring.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DerivedSSHKeyPair {
-  /** Ed25519 private key in OpenSSH PEM format */
+  /** Ed25519 private key as PKCS#8 PEM (Node crypto, ssh2). Kept for back-compat. */
   privateKeyPEM: string;
+  /** Ed25519 private key as unencrypted openssh-key-v1 — what OpenSSH and paramiko load. */
+  privateKeyOpenSSH: string;
   /** Ed25519 public key in OpenSSH authorized_keys format */
   publicKeySSH: string;
   /** The wallet address this key was derived from */
@@ -144,29 +147,12 @@ export function deriveEd25519FromWallet(
   const seed = hkdf(ikm, salt, info, 32);
 
   // Generate Ed25519 keypair from the deterministic seed
-  // Node.js crypto.generateKeyPairSync with ed25519 type uses the seed directly
-  const keyPair = generateKeyPairSync('ed25519', {
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-  });
-
-  // For deterministic derivation, we need to use the seed directly.
-  // Node.js doesn't expose Ed25519 seed-based generation in generateKeyPairSync,
-  // so we construct the key from the seed using the DER encoding.
-
-  // Ed25519 private key DER structure (48 bytes total):
-  // 30 2e                          — SEQUENCE (46 bytes)
-  //   02 01 00                     — INTEGER 0 (version)
-  //   30 05                        — SEQUENCE (5 bytes) — AlgorithmIdentifier
-  //     06 03 2b 65 70             — OID 1.3.101.112 (Ed25519)
-  //   04 22                        — OCTET STRING (34 bytes) — privateKey
-  //     04 20                      — OCTET STRING (32 bytes) — actual key bytes
-  //       <32 bytes of seed>
-  // Generate Ed25519 keypair from the deterministic seed
   const { privateKey, publicKey } = generateKeyPairFromSeed(seed);
 
   // Format as OpenSSH public key
-  const publicKeySSH = formatOpenSSHPublicKey(publicKey, `pmvpn:${address}:${context}`);
+  const comment = `pmvpn:${address.toLowerCase()}:${context}`;
+  const publicKeySSH = formatOpenSSHPublicKey(publicKey, comment);
+  const privateKeyOpenSSH = encodeOpenSSHPrivateKey(new Uint8Array(seed), new Uint8Array(publicKey), comment);
 
   // Compute fingerprint
   const fingerprint = computeFingerprint(publicKey);
@@ -177,6 +163,7 @@ export function deriveEd25519FromWallet(
 
   return {
     privateKeyPEM: privateKey,
+    privateKeyOpenSSH,
     publicKeySSH,
     sourceAddress: address,
     context,
@@ -197,8 +184,7 @@ function generateKeyPairFromSeed(seed: Buffer): { privateKey: string; publicKey:
   const pkcs8DER = Buffer.concat([pkcs8Prefix, seed]);
 
   // Import as crypto KeyObject
-  const { createPrivateKey: createPrivKey } = require('crypto');
-  const privateKeyObj = createPrivKey({
+  const privateKeyObj = createPrivateKey({
     key: pkcs8DER,
     format: 'der',
     type: 'pkcs8',
@@ -208,8 +194,7 @@ function generateKeyPairFromSeed(seed: Buffer): { privateKey: string; publicKey:
   const privateKeyPEM = privateKeyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
 
   // Derive public key from private key
-  const { createPublicKey: createPubKey } = require('crypto');
-  const publicKeyObj = createPubKey(privateKeyObj);
+  const publicKeyObj = createPublicKey(privateKeyObj);
   const publicKeyRaw = publicKeyObj.export({ type: 'spki', format: 'der' });
 
   // Extract the 32-byte public key from SPKI DER
@@ -249,7 +234,8 @@ function computeFingerprint(pubKeyBytes: Buffer): string {
   pubKeyLen.writeUInt32BE(pubKeyBytes.length);
   const blob = Buffer.concat([keyTypeLen, keyType, pubKeyLen, pubKeyBytes]);
 
-  const hash = createHash('sha256').update(blob).digest('base64');
+  // No '=' padding — identical to `ssh-keygen -lf`.
+  const hash = createHash('sha256').update(blob).digest('base64').replace(/=+$/, '');
   return `SHA256:${hash}`;
 }
 
@@ -426,7 +412,7 @@ export interface WalletAgentIdentity {
  * The challenge includes entropy and session binding to prevent replay.
  */
 export function createAgentChallenge(sessionId: string): SSHAgentChallenge {
-  const challengeBytes = require('crypto').randomBytes(32);
+  const challengeBytes = randomBytes(32);
   return {
     challenge: challengeBytes.toString('hex'),
     sessionId,

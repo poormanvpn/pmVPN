@@ -6,7 +6,7 @@
 
 // --- constants ---
 
-export const PROTOCOL_VERSION = '0.1.0';
+export const PROTOCOL_VERSION = '0.1.1';
 export const PROTOCOL_PREFIX = 'PMVPN';
 export const DEFAULT_BASE_PORT = 2200;
 
@@ -36,6 +36,23 @@ export const PORT_NAMES: Record<number, string> = {
 
 export const NUM_PORTS = 8;
 
+// --- keyring: one wallet signature → N port-scoped Ed25519 keys ---
+// Mirrors crypto-ssh/src/keyring.ts. Index i is valid on port base+i only.
+
+export const KEYRING_VERSION = 1;
+export const KEYRING_MESSAGE_PREFIX = 'PMVPN-KEYRING:v1:';
+export const KEYRING_SALT = 'pmvpn-keyring';
+export const DEFAULT_KEYRING_SIZE = NUM_PORTS;
+export const MAX_KEYRING_SIZE = 64;
+
+export const PORT_SLUGS: readonly string[] = [
+  'shell', 'sftp', 'exec', 'challenge', 'tunnel', 'sync', 'claude', 'admin',
+];
+
+export function portSlug(index: number): string {
+  return PORT_SLUGS[index] ?? `k${index}`;
+}
+
 // --- types ---
 
 export interface ChallengeRequest {
@@ -64,4 +81,29 @@ export interface ServerStatus {
   uptime: number;
   ports: Record<number, { offset: number; service: string; active: boolean }>;
   connections: number;
+}
+
+export interface KeyringEntry {
+  index: number;
+  slug: string;
+  publicKey: string;
+  fingerprint: string;
+}
+
+export interface KeyringEnrolRequest extends AuthPayload {
+  hostFingerprint: string;
+  keys: Array<{ index: number; publicKey: string }>;
+}
+
+export interface KeyringEnrolResponse {
+  enrolled: number;
+  address: string;
+  user: string;
+  hostFingerprint: string;
+  hostKey: string;
+  basePort: number;
+  keyringSize: number;
+  keys: KeyringEntry[];
+  sshConfig: string;
+  knownHosts: string;
 }

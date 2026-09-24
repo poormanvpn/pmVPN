@@ -5,6 +5,7 @@ import { logger } from './pmvpn/server/src/utils/logger.js';
 import { ensureWardenInstalled } from './pmvpn/server/src/utils/warden.js';
 import { loadOrGenerateHostKey } from './pmvpn/server/src/utils/hostkey.js';
 import { loadWalletMap } from './pmvpn/server/src/config/wallets.js';
+import { loadKeyrings } from './pmvpn/server/src/auth/keyring.js';
 import { createSSHServer } from './pmvpn/server/src/ssh/server.js';
 import { createChallengeServer } from './pmvpn/server/src/api/challenge.js';
 import { createWsBridge } from './pmvpn/server/src/ws/bridge.js';
@@ -39,6 +40,9 @@ async function main(): Promise<void> {
   } else {
     logger.info({ count: walletMap.size }, 'wallet mappings loaded');
   }
+
+  // Load enrolled keyrings (public keys only) for port-scoped publickey auth
+  loadKeyrings();
 
   // Initialize module registry
   const moduleRegistry = new ModuleRegistry();
@@ -96,7 +100,7 @@ async function main(): Promise<void> {
   });
 
   // Port +5: File Sync (SSH — shell role for now, specializes later)
-  const syncServer = createSSHServer(hostKey, walletMap, 'shell');
+  const syncServer = createSSHServer(hostKey, walletMap, 'shell', PORT_OFFSET.FILE_SYNC);
   syncServer.listen(portFor(PORT_OFFSET.FILE_SYNC), BIND_HOST, () => {
     logger.info({ port: portFor(PORT_OFFSET.FILE_SYNC), service: PORT_NAMES[5] }, 'listening');
   });

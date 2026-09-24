@@ -7,11 +7,18 @@
 #   show <user|wallet>  inspect binding for a specific user or wallet
 #   remove <user|wallet>  deprovision (locks user, removes pmvpn: keys, optional purge)
 #   rotate <user|wallet>  rotate the user's ed25519 key, refresh authorized_keys
+#   keyring-install <user|wallet> <lines-file>
+#                     replace the wallet's pmvpn:<wallet>:k* ring lines in authorized_keys
+#                     with the lines in <lines-file> (one authorized_keys line each)
+#   keyring-remove <user|wallet>
+#                     strip the wallet's ring lines (the server does this on DELETE /keyring)
 #
 # Designed for ops staff. Calls the non-interactive pmvpn-create-user.sh
 # for the heavy lifting.
 
 set -eu
+
+VERSION="2"
 
 WARDEN_DIR="$(cd "$(dirname "$0")" && pwd)"
 CREATE_USER="${WARDEN_DIR}/pmvpn-create-user.sh"
@@ -164,6 +171,51 @@ cmd_show() {
   sed 's/^/  /' "$home/.ssh/pmvpn_wallet"
   echo "authorized_keys (pmvpn entries):"
   grep -F "pmvpn:" "$home/.ssh/authorized_keys" 2>/dev/null | sed 's/^/  /' || echo "  (none)"
+  local ring="/root/.pmvpn/keyrings/${wallet}.json"
+  if [ -f "$ring" ]; then
+    echo "keyring: $ring"
+    grep -E '"(index|slug|fingerprint)"' "$ring" | sed 's/^ */  /'
+  else
+    echo "keyring: (none enrolled)"
+  fi
+}
+
+# Rewrite only the wallet's ring lines (tag pmvpn:<wallet>:k*), keep everything else.
+_keyring_rewrite() {
+  local user="$1" wallet="$2" lines_file="${3:-}" home ak tmp
+  home="$(getent passwd "$user" | cut -d: -f6)"
+  ak="$home/.ssh/authorized_keys"
+  mkdir -p "$home/.ssh"; chmod 700 "$home/.ssh"; chown "$user:$user" "$home/.ssh"
+  touch "$ak"
+  tmp="$(mktemp)"
+  grep -v -F "pmvpn:${wallet}:k" "$ak" > "$tmp" || true
+  if [ -n "$lines_file" ]; then
+    grep -E 'ssh-ed25519 ' "$lines_file" >> "$tmp"
+  fi
+  install -m 600 -o "$user" -g "$user" "$tmp" "$ak"
+  rm -f "$tmp"
+}
+
+cmd_keyring_install() {
+  require_root
+  local arg="${1:-}" file="${2:-}"
+  [ -n "$arg" ] && [ -f "$file" ] || { echo "usage: pmvpn-warden keyring-install <user|wallet> <lines-file>" >&2; exit 2; }
+  local pair user wallet
+  pair="$(resolve_target "$arg")" || exit 1
+  user="${pair% *}"; wallet="${pair#* }"
+  _keyring_rewrite "$user" "$wallet" "$file"
+  echo "keyring installed for $user ($(grep -c 'ssh-ed25519 ' "$file") keys)."
+}
+
+cmd_keyring_remove() {
+  require_root
+  local arg="${1:-}"; [ -n "$arg" ] || { echo "usage: pmvpn-warden keyring-remove <user|wallet>" >&2; exit 2; }
+  local pair user wallet
+  pair="$(resolve_target "$arg")" || exit 1
+  user="${pair% *}"; wallet="${pair#* }"
+  _keyring_rewrite "$user" "$wallet" ""
+  rm -f "/root/.pmvpn/keyrings/${wallet}.json"
+  echo "keyring removed for $user."
 }
 
 cmd_remove() {
@@ -222,6 +274,10 @@ pmvpn-warden — pmVPN admin CLI
   pmvpn-warden show   <user|wallet>      show binding details
   pmvpn-warden remove <user|wallet>      lock account, strip pmvpn keys
   pmvpn-warden rotate <user|wallet>      rotate the user's ed25519 key
+  pmvpn-warden keyring-install <user|wallet> <lines-file>
+                                         replace the wallet's port-scoped ring lines
+  pmvpn-warden keyring-remove  <user|wallet>
+                                         strip the wallet's ring lines
 
 Wallets are matched case-insensitively. All write subcommands require root.
 EOF
@@ -233,6 +289,8 @@ case "${1:-}" in
   show)   shift; cmd_show   "$@" ;;
   remove) shift; cmd_remove "$@" ;;
   rotate) shift; cmd_rotate "$@" ;;
+  keyring-install) shift; cmd_keyring_install "$@" ;;
+  keyring-remove)  shift; cmd_keyring_remove  "$@" ;;
   ''|-h|--help|help) usage ;;
   *) echo "unknown subcommand: $1" >&2; usage; exit 2 ;;
 esac

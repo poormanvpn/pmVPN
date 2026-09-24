@@ -1,7 +1,7 @@
 // PMVPN protocol constants
 // MIT License — shared between client and server
 
-export const PROTOCOL_VERSION = '0.1.0';
+export const PROTOCOL_VERSION = '0.1.1';
 export const PROTOCOL_PREFIX = 'PMVPN';
 
 // Default base port — all 8 services offset from this
@@ -33,3 +33,20 @@ export const PORT_NAMES: Record<number, string> = {
 };
 
 export const NUM_PORTS = 8;
+
+// --- keyring: one wallet signature → N port-scoped Ed25519 keys ---
+// Mirrors crypto-ssh/src/keyring.ts. Index i is valid on port base+i only.
+
+export const KEYRING_VERSION = 1;
+export const KEYRING_MESSAGE_PREFIX = 'PMVPN-KEYRING:v1:';
+export const KEYRING_SALT = 'pmvpn-keyring';
+export const DEFAULT_KEYRING_SIZE = NUM_PORTS;
+export const MAX_KEYRING_SIZE = 64;
+
+export const PORT_SLUGS: readonly string[] = [
+  'shell', 'sftp', 'exec', 'challenge', 'tunnel', 'sync', 'claude', 'admin',
+];
+
+export function portSlug(index: number): string {
+  return PORT_SLUGS[index] ?? `k${index}`;
+}

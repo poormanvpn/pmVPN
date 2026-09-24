@@ -3,7 +3,8 @@
 //
 // Thank OpenBSD: Ed25519 only. No RSA, no ECDSA NIST curves.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
@@ -36,4 +37,25 @@ export function loadOrGenerateHostKey(): Buffer {
 
   logger.info({ path: HOSTKEY_PATH }, 'Ed25519 host key generated and saved');
   return readFileSync(HOSTKEY_PATH);
+}
+
+const HOSTKEY_PUB_PATH = HOSTKEY_PATH + '.pub';
+let cachedPublicLine: string | null = null;
+
+/** `ssh-ed25519 AAAA…` — the host key's public half without the comment. */
+export function hostKeyPublicLine(): string {
+  if (cachedPublicLine) return cachedPublicLine;
+  if (!existsSync(HOSTKEY_PUB_PATH)) {
+    throw new Error(`host public key missing: ${HOSTKEY_PUB_PATH}`);
+  }
+  const [type, b64] = readFileSync(HOSTKEY_PUB_PATH, 'utf-8').trim().split(/\s+/);
+  if (type !== 'ssh-ed25519' || !b64) throw new Error('host key is not ssh-ed25519');
+  cachedPublicLine = `${type} ${b64}`;
+  return cachedPublicLine;
+}
+
+/** `SHA256:<base64, no padding>` — what clients bind the keyring to. */
+export function hostKeyFingerprint(): string {
+  const b64 = hostKeyPublicLine().split(' ')[1];
+  return 'SHA256:' + createHash('sha256').update(Buffer.from(b64, 'base64')).digest('base64').replace(/=+$/, '');
 }

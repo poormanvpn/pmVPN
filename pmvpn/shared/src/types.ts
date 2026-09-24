@@ -33,3 +33,31 @@ export interface ServerStatus {
   ports: Record<number, { offset: number; service: string; active: boolean }>;
   connections: number;
 }
+
+/** One enrolled keyring key — public material only */
+export interface KeyringEntry {
+  index: number;       // port offset the key is valid for
+  slug: string;        // shell | sftp | exec | … | k<i>
+  publicKey: string;   // "ssh-ed25519 AAAA… pmvpn:<wallet>:k<i>:<slug>"
+  fingerprint: string; // "SHA256:…"
+}
+
+/** POST /keyring — enrol a ring after signing a challenge nonce */
+export interface KeyringEnrolRequest extends AuthPayload {
+  hostFingerprint: string;                       // must equal the server's host-key fingerprint
+  keys: Array<{ index: number; publicKey: string }>;
+}
+
+/** POST /keyring response — everything a client needs to write ssh_config */
+export interface KeyringEnrolResponse {
+  enrolled: number;
+  address: string;
+  user: string;
+  hostFingerprint: string;
+  hostKey: string;          // "ssh-ed25519 AAAA…"
+  basePort: number;
+  keyringSize: number;
+  keys: KeyringEntry[];
+  sshConfig: string;
+  knownHosts: string;
+}

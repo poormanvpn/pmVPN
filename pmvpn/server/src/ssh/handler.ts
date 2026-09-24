@@ -1,7 +1,7 @@
 // SSH connection handler — per-connection auth and session lifecycle
 // MIT License
 
-import type ssh2 from 'ssh2';
+import ssh2 from 'ssh2';
 type Connection = ssh2.Connection;
 type ServerChannel = ssh2.ServerChannel;
 import { spawn } from 'node:child_process';
@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
 import { provisionWallet } from '../auth/provision.js';
+import { findByBlob } from '../auth/keyring.js';
 import { spawnShell } from './shell.js';
 import { createSftpHost } from './sftp-host.js';
 import { attachSftpSubsystem } from './sftp-subsystem.js';
@@ -29,15 +30,22 @@ interface SessionState {
   sessionId: string | null;
 }
 
+const AUTH_METHODS: ssh2.AuthenticationType[] = ['publickey', 'password'];
+
 /**
  * Handle a single SSH connection.
- * Authenticates via wallet signature, then provisions shell/sftp.
+ * Two ways in, same outcome:
+ *   password  — JSON { address, signature, nonce } signed by the wallet (the pmVPN client)
+ *   publickey — an enrolled keyring key whose index equals this port's offset
+ *               (stock OpenSSH, paramiko, rsync, git — anything that speaks SSH)
+ * Both end in provisionWallet(), so the session always runs as the bound user.
  */
 export function handleConnection(
   client: Connection,
   clientInfo: { ip: string; port: number },
   walletMap: WalletMap,
   portRole: 'shell' | 'sftp' | 'exec' | 'tunnel',
+  portIndex: number = 0,
 ): void {
   const session: SessionState = {
     username: null,
@@ -49,11 +57,63 @@ export function handleConnection(
   const clientLabel = `${clientInfo.ip}:${clientInfo.port}`;
   logger.info({ client: clientLabel, role: portRole }, 'new connection');
 
+  const sessionType = portRole === 'shell' ? 'ssh-shell' : portRole === 'sftp' ? 'ssh-sftp' : portRole === 'exec' ? 'ssh-exec' : 'tunnel';
+
   client.on('authentication', async (ctx) => {
-    // Only accept password method (wallet signature JSON)
+    // ── publickey: enrolled keyring key, scoped to this port ──
+    if (ctx.method === 'publickey') {
+      if (ctx.key.algo !== 'ssh-ed25519') {
+        logger.debug({ client: clientLabel, algo: ctx.key.algo }, 'publickey: unsupported algorithm');
+        return ctx.reject(AUTH_METHODS);
+      }
+      const entry = findByBlob(ctx.key.data);
+      if (!entry) {
+        logger.debug({ client: clientLabel }, 'publickey: key not enrolled');
+        return ctx.reject(AUTH_METHODS);
+      }
+      if (entry.index !== portIndex) {
+        // The whole point of the ring: key i opens port +i and nothing else.
+        logger.warn({ client: clientLabel, address: entry.address, keyIndex: entry.index, portIndex, fingerprint: entry.fingerprint }, 'publickey: key index does not match this port');
+        return ctx.reject(AUTH_METHODS);
+      }
+      const prov = provisionWallet(entry.address, walletMap);
+      if (!prov.ok || !prov.entry || !prov.homeDir) {
+        logger.warn({ client: clientLabel, address: entry.address, error: prov.error }, 'publickey: provisioning rejected auth');
+        return ctx.reject(AUTH_METHODS);
+      }
+      // The key already identifies the wallet; the username just has to be one of its names.
+      const wanted = ctx.username.toLowerCase();
+      if (wanted !== prov.entry.user.toLowerCase() && wanted !== entry.address && wanted !== 'pmvpn') {
+        logger.warn({ client: clientLabel, address: entry.address, username: ctx.username, bound: prov.entry.user }, 'publickey: username does not belong to this wallet');
+        return ctx.reject(AUTH_METHODS);
+      }
+      if (!ctx.signature || !ctx.blob) {
+        // Probe: the client asks whether this key would be acceptable. Say yes; it signs next.
+        return ctx.accept();
+      }
+      const parsed = ssh2.utils.parseKey(ctx.key.data);
+      if (parsed instanceof Error || Array.isArray(parsed)) {
+        logger.warn({ client: clientLabel }, 'publickey: unparseable key blob');
+        return ctx.reject(AUTH_METHODS);
+      }
+      const ok = parsed.verify(ctx.blob, ctx.signature, ctx.hashAlgo);
+      if (ok !== true) {
+        logger.warn({ client: clientLabel, address: entry.address, keyIndex: entry.index }, 'publickey: signature verification failed');
+        return ctx.reject(AUTH_METHODS);
+      }
+
+      session.username = prov.entry.user;
+      session.address = entry.address;
+      session.authenticated = true;
+      session.sessionId = registerSession(entry.address, prov.entry.user, prov.entry.role, sessionType, clientInfo.ip, clientInfo.port);
+      logger.info({ client: clientLabel, user: prov.entry.user, address: entry.address, keyIndex: entry.index, fingerprint: entry.fingerprint, sessionId: session.sessionId }, 'authenticated (keyring)');
+      return ctx.accept();
+    }
+
+    // ── password: wallet signature JSON ──
     if (ctx.method !== 'password') {
       logger.debug({ client: clientLabel, method: ctx.method }, 'rejected auth method');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     // Parse JSON payload from password field
@@ -62,34 +122,34 @@ export function handleConnection(
       payload = JSON.parse(ctx.password);
     } catch {
       logger.warn({ client: clientLabel }, 'malformed auth payload');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     const { address, signature, nonce } = payload;
     if (!address || !signature || !nonce) {
       logger.warn({ client: clientLabel }, 'incomplete auth payload');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     // Consume nonce (single-use, prevents replay)
     const message = consumeChallenge(nonce);
     if (!message) {
       logger.warn({ client: clientLabel, address }, 'invalid or expired nonce');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     // Verify wallet signature (viem — pure local crypto)
     const valid = await verifyWalletSignature(address, message, signature);
     if (!valid) {
       logger.warn({ client: clientLabel, address }, 'invalid signature');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     // Provision the Linux user (or refuse if the wallet does not own this account)
     const prov = provisionWallet(address, walletMap);
     if (!prov.ok || !prov.entry || !prov.homeDir) {
       logger.warn({ client: clientLabel, address, error: prov.error }, 'provisioning rejected auth');
-      return ctx.reject(['password']);
+      return ctx.reject(AUTH_METHODS);
     }
 
     // Authentication successful
@@ -98,7 +158,6 @@ export function handleConnection(
     session.authenticated = true;
 
     // Register in active session registry
-    const sessionType = portRole === 'shell' ? 'ssh-shell' : portRole === 'sftp' ? 'ssh-sftp' : portRole === 'exec' ? 'ssh-exec' : 'tunnel';
     session.sessionId = registerSession(session.address, prov.entry.user, prov.entry.role, sessionType, clientInfo.ip, clientInfo.port);
 
     logger.info({ client: clientLabel, user: prov.entry.user, address: session.address, newUser: prov.newUser, sessionId: session.sessionId }, 'authenticated');
@@ -197,6 +256,9 @@ export function handleConnection(
         try {
           const host = await createSftpHost(username, homeDir);
           attachSftpSubsystem(sftpStream, host, username);
+          // When the client sends EOF (sftp `bye`), answer with our own EOF/close so
+          // stock OpenSSH sftp exits instead of waiting for the channel to drain.
+          sftpStream.on('end' as any, () => { try { sftpStream.end(); } catch {} });
           sftpStream.on('close' as any, () => host.close());
           logger.info({ user: username }, 'SFTP session opened');
         } catch (err: any) {

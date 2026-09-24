@@ -8,6 +8,7 @@
 import { loadOrGenerateHostKey } from './utils/hostkey.js';
 import { ensureWardenInstalled } from './utils/warden.js';
 import { loadWalletMap } from './config/wallets.js';
+import { loadKeyrings } from './auth/keyring.js';
 import { createSSHServer } from './ssh/server.js';
 import { createChallengeServer } from './api/challenge.js';
 import { createWsBridge } from './ws/bridge.js';
@@ -34,6 +35,9 @@ async function main(): Promise<void> {
   } else {
     logger.info({ count: walletMap.size }, 'wallet mappings loaded');
   }
+
+  // Load enrolled keyrings (public keys only) for port-scoped publickey auth
+  loadKeyrings();
 
   // Initialize module registry
   const moduleRegistry = new ModuleRegistry();
@@ -80,7 +84,7 @@ async function main(): Promise<void> {
   });
 
   // Port +5: File Sync (SSH — shell role for now, specializes later)
-  const syncServer = createSSHServer(hostKey, walletMap, 'shell');
+  const syncServer = createSSHServer(hostKey, walletMap, 'shell', PORT_OFFSET.FILE_SYNC);
   syncServer.listen(portFor(PORT_OFFSET.FILE_SYNC), BIND_HOST, () => {
     logger.info({ port: portFor(PORT_OFFSET.FILE_SYNC), service: PORT_NAMES[5] }, 'listening');
   });

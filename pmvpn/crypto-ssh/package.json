@@ -1,6 +1,6 @@
 {
   "name": "@pmvpn/crypto-ssh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bidirectional key derivation between SSH keys and cryptocurrency wallets",
   "license": "MIT",
   "type": "module",
@@ -8,10 +8,20 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "tsx --test test/*.test.ts",
+    "keyring": "tsx bin/pmvpn-keyring.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.7.0"
+  },
+  "bin": {
+    "pmvpn-keyring": "dist/bin/pmvpn-keyring.js"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.1",
+    "@noble/hashes": "^1.8.0"
   }
 }

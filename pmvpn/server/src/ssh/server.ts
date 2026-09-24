@@ -13,13 +13,20 @@ import type { WalletMap } from '../config/wallets.js';
 
 type PortRole = 'shell' | 'sftp' | 'exec' | 'tunnel';
 
+/** Default keyring index for a role — the port offset it normally listens on. */
+const DEFAULT_PORT_INDEX: Record<PortRole, number> = { shell: 0, sftp: 1, exec: 2, tunnel: 4 };
+
 /**
  * Create a hardened ssh2 Server bound to a specific port and role.
+ * `portIndex` is the port offset (0..N-1); keyring key i is accepted only when
+ * i === portIndex. Pass it explicitly when a role is reused on another port
+ * (file sync runs the shell role on +5).
  */
 export function createSSHServer(
   hostKey: Buffer,
   walletMap: WalletMap,
   role: PortRole,
+  portIndex: number = DEFAULT_PORT_INDEX[role],
 ): SSH2Server {
   const server = new SSH2Server({
     hostKeys: [hostKey],
@@ -48,7 +55,7 @@ export function createSSHServer(
       ip: info.ip,
       port: info.port,
     };
-    handleConnection(client, clientInfo, walletMap, role);
+    handleConnection(client, clientInfo, walletMap, role, portIndex);
   });
 
   server.on('error', (err) => {
