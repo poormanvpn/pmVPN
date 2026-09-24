@@ -183,6 +183,7 @@ export async function deploySSHKey(
   term: TerminalInstance,
   walletAddress: string,
   log: (msg: string, level?: string) => void,
+  publicKeyLine?: string,
 ): Promise<boolean> {
   log('ssh-key: deploying Ed25519 key for persistent access...', 'info');
 
@@ -201,6 +202,19 @@ export async function deploySSHKey(
     const marker = `pmvpn:${walletAddress.toLowerCase()}`;
     if (currentKeys.includes(marker)) {
       log('ssh-key: key already deployed for this wallet', 'info');
+      return true;
+    }
+
+    // Preferred path: the wallet-derived keyring's shell key (k0). The private
+    // half stays on this device; only the public line travels.
+    if (publicKeyLine) {
+      const line = publicKeyLine.trim();
+      const merged = (currentKeys ? currentKeys.replace(/\n?$/, '\n') : '') + line + '\n';
+      const put = await term.sendSftp('put', '.ssh/authorized_keys', btoa(merged));
+      if (!put.ok) throw new Error(put.error || 'authorized_keys upload failed');
+      // The SFTP worker writes 0644 under the user's umask; sshd only refuses
+      // group/world-writable files, so no chmod round-trip is needed.
+      log(`ssh-key: keyring shell key deployed (${line.split(' ').pop()})`, 'success');
       return true;
     }
 

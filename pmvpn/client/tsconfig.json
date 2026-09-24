@@ -7,7 +7,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "paths": {
+      "@pmvpn/crypto-ssh/keyring": [
+        "../crypto-ssh/src/keyring.ts"
+      ]
+    },
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }

@@ -855,6 +855,17 @@ textarea.pmvpn-input {
 
 .pmvpn-share-panel { max-width: 600px; margin: 0 auto; }
 
+/* Keys tab */
+.pmvpn-keys-status { font-size: 12px; color: var(--foreground); margin-bottom: 8px; word-break: break-all; }
+.pmvpn-keys-explain, .pmvpn-keys-hint { font-size: 11px; color: var(--muted-foreground); line-height: 1.5; }
+.pmvpn-keys-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pmvpn-keys-item { display: grid; grid-template-columns: 2.4em 6em 4em 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+.pmvpn-keys-index { font-weight: 600; color: var(--primary); }
+.pmvpn-keys-port { color: var(--muted-foreground); }
+.pmvpn-keys-fp { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmvpn-keys-state { font-size: 10px; text-transform: uppercase; color: var(--muted-foreground); }
+.pmvpn-keys-empty { font-size: 12px; color: var(--muted-foreground); padding: 8px 0; }
+
 .pmvpn-share-section {
   margin-bottom: 16px;
   padding: 14px;

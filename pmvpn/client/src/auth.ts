@@ -253,6 +253,17 @@ export async function signAndBuildPayload(message: string, nonce: string): Promi
   return JSON.stringify({ address: connectedAddress, signature, nonce });
 }
 
+/**
+ * Sign an arbitrary message with the connected wallet (EIP-191 personal_sign).
+ * Used for the keyring derivation prompt; the text names the server it is for.
+ */
+export async function signMessage(message: string): Promise<string> {
+  if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
+    throw new Error('No verified session — connect wallet first');
+  }
+  return walletClient.signMessage({ account: connectedAddress as `0x${string}`, message });
+}
+
 export function onAccountChange(callback: (accounts: string[]) => void): void {
   const provider = activeProvider || getWalletProvider();
   try { provider?.on('accountsChanged', callback); } catch {}

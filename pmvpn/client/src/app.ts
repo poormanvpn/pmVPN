@@ -17,6 +17,7 @@ import { createFileBrowser } from './files';
 import { bootstrapServer, deploySSHKey } from './bootstrap';
 import { exportProfiles, importProfiles } from './hostkeys';
 import { createSharePanel } from './share';
+import { createKeysPanel, getKeyringShellPublicLine } from './keyring';
 import { createDappDiagnostics } from './dapp-diagnostics';
 injectStyles();
 
@@ -34,9 +35,11 @@ interface HostSession {
   term: TerminalInstance;
   fileBrowser: ReturnType<typeof createFileBrowser>;
   sharePanel: ReturnType<typeof createSharePanel>;
+  keysPanel: ReturnType<typeof createKeysPanel> | null;
   termEl: HTMLElement;
   filesEl: HTMLElement;
   shareEl: HTMLElement;
+  keysEl: HTMLElement;
 }
 
 let logEl: HTMLElement;
@@ -226,7 +229,7 @@ export function createApp(): HTMLElement {
     if (!term?.isConnected()) { log('connect to a server first', 'error'); return; }
     const address = getAddress();
     if (!address) { log('connect MetaMask first', 'error'); return; }
-    await deploySSHKey(term, address, log);
+    await deploySSHKey(term, address, log, getKeyringShellPublicLine() || undefined);
   });
 
   const exportBtn = document.createElement('button');
@@ -666,6 +669,8 @@ export function createApp(): HTMLElement {
       session.termEl.remove();
       session.filesEl.remove();
       session.shareEl.remove();
+      session.keysPanel?.destroy();
+      session.keysEl.remove();
     }
     sessions.clear();
     tabBar.style.display = 'none';
@@ -709,33 +714,37 @@ export function createApp(): HTMLElement {
   }
 
   // ── Tab switching ──
-  let activeTab: 'terminal' | 'files' | 'share' = 'terminal';
+  let activeTab: 'terminal' | 'files' | 'share' | 'keys' = 'terminal';
   let fileBrowser: ReturnType<typeof createFileBrowser> | null = null;
   let sharePanel: ReturnType<typeof createSharePanel> | null = null;
   const tabBar = mk('div', 'pmvpn-tabs');
   const tabTerminal = mk('button', 'pmvpn-tab active', 'Terminal');
   const tabFiles = mk('button', 'pmvpn-tab', 'Files');
   const tabShare = mk('button', 'pmvpn-tab', 'Share');
+  const tabKeys = mk('button', 'pmvpn-tab', 'Keys');
   tabTerminal.addEventListener('click', () => switchTab('terminal'));
   tabFiles.addEventListener('click', () => switchTab('files'));
   tabShare.addEventListener('click', () => switchTab('share'));
-  tabBar.append(tabTerminal, tabFiles, tabShare);
+  tabKeys.addEventListener('click', () => switchTab('keys'));
+  tabBar.append(tabTerminal, tabFiles, tabShare, tabKeys);
   tabBar.style.display = 'none';
   main.insertBefore(tabBar, placeholder);
 
   // Per-host containers are created dynamically in doConnectTo()
 
-  function switchTab(tab: 'terminal' | 'files' | 'share') {
+  function switchTab(tab: 'terminal' | 'files' | 'share' | 'keys') {
     activeTab = tab;
     tabTerminal.className = `pmvpn-tab ${tab === 'terminal' ? 'active' : ''}`;
     tabFiles.className = `pmvpn-tab ${tab === 'files' ? 'active' : ''}`;
     tabShare.className = `pmvpn-tab ${tab === 'share' ? 'active' : ''}`;
+    tabKeys.className = `pmvpn-tab ${tab === 'keys' ? 'active' : ''}`;
 
     // Hide all session containers, then show active session's container for this tab
     for (const [, session] of sessions) {
       session.termEl.style.display = 'none';
       session.filesEl.style.display = 'none';
       session.shareEl.style.display = 'none';
+      session.keysEl.style.display = 'none';
     }
 
     if (activeConnId) {
@@ -750,6 +759,9 @@ export function createApp(): HTMLElement {
         } else if (tab === 'share') {
           session.shareEl.style.display = '';
           session.sharePanel?.refresh();
+        } else if (tab === 'keys') {
+          session.keysEl.style.display = '';
+          session.keysPanel?.refresh();
         }
       }
     }
@@ -762,6 +774,7 @@ export function createApp(): HTMLElement {
       session.termEl.style.display = 'none';
       session.filesEl.style.display = 'none';
       session.shareEl.style.display = 'none';
+      session.keysEl.style.display = 'none';
     }
 
     const session = sessions.get(connId);
@@ -782,6 +795,9 @@ export function createApp(): HTMLElement {
     } else if (activeTab === 'share') {
       session.shareEl.style.display = '';
       session.sharePanel.refresh();
+    } else if (activeTab === 'keys') {
+      session.keysEl.style.display = '';
+      session.keysPanel?.refresh();
     }
 
     // Update payload display
@@ -828,11 +844,14 @@ export function createApp(): HTMLElement {
       const termEl = mk('div', 'pmvpn-terminal-container active');
       const filesEl = mk('div', 'pmvpn-files-container');
       const shareEl = mk('div', 'pmvpn-share-container');
+      const keysEl = mk('div', 'pmvpn-share-container pmvpn-keys-container');
       filesEl.style.display = 'none';
       shareEl.style.display = 'none';
+      keysEl.style.display = 'none';
       main.appendChild(termEl);
       main.appendChild(filesEl);
       main.appendChild(shareEl);
+      main.appendChild(keysEl);
 
       // Create terminal for this host
       const hostTerm = createTerminal();
@@ -877,14 +896,21 @@ export function createApp(): HTMLElement {
           shareEl.appendChild(sp.element);
           sp.refresh();
 
+          // Keys tab: derive, enrol, export and revoke the port-scoped keyring
+          const kp = createKeysPanel(conn, getAddress()!, log);
+          keysEl.appendChild(kp.element);
+          kp.refresh();
+
           // Store session
           sessions.set(conn.id, {
             term: hostTerm,
             fileBrowser: fb,
             sharePanel: sp,
+            keysPanel: kp,
             termEl,
             filesEl,
             shareEl,
+            keysEl,
           });
 
           // Show this session
@@ -898,7 +924,7 @@ export function createApp(): HTMLElement {
           hostTerm.terminal.writeln(`\r\n\x1b[31mWebSocket auth failed: ${error}\x1b[0m`);
           hostTerm.terminal.writeln(`\x1b[33mUse auth payload as SSH password instead.\x1b[0m`);
           // Still store the session for payload mode
-          sessions.set(conn.id, { term: hostTerm, fileBrowser: null as any, sharePanel: null as any, termEl, filesEl, shareEl });
+          sessions.set(conn.id, { term: hostTerm, fileBrowser: null as any, sharePanel: null as any, keysPanel: null, termEl, filesEl, shareEl, keysEl });
           showSession(conn.id);
         }
       });
@@ -927,6 +953,8 @@ export function createApp(): HTMLElement {
       session.termEl.remove();
       session.filesEl.remove();
       session.shareEl.remove();
+      session.keysPanel?.destroy();
+      session.keysEl.remove();
       sessions.delete(conn.id);
     }
     conn.status = 'offline';
@@ -965,6 +993,8 @@ export function createApp(): HTMLElement {
       session.termEl.remove();
       session.filesEl.remove();
       session.shareEl.remove();
+      session.keysPanel?.destroy();
+      session.keysEl.remove();
     }
     sessions.clear();
 
