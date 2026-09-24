@@ -12,4 +12,4 @@ echo "Working directory: $(pwd)"
 # Run the server using tsx from the server directory (for node_modules resolution)
 # but with the entry point at the project root (for ES module import paths)
 cd pmvpn/server
-npx tsx ../../pmvpn-server-entry.ts
+pnpm exec tsx ../../pmvpn-server-entry.ts
