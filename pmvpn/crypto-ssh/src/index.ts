@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // crypto-ssh — Bidirectional key derivation between SSH and cryptocurrency wallets
 // MIT License
 //

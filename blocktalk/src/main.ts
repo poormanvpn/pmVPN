@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // blocktalk — wallet-to-wallet messaging
 // MIT License
 //

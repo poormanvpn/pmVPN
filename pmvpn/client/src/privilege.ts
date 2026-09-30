@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Privilege Gate — asset-based access verification
 // MIT License
 //

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // crypto-ssh: Wallet → SSH Key Derivation
 // MIT License
 //

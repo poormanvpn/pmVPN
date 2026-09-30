@@ -2,7 +2,7 @@
   "name": "@pmvpn/blocktalk",
   "version": "0.1.0",
   "description": "blocktalk — wallet-to-wallet messaging",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite --port 1421",

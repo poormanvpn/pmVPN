@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Active session registry — tracks all authenticated connections
 // MIT License
 //

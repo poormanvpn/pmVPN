@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-09-23 | Status: Alpha · v0.1.1 | 9.10 of 10 phases complete | see [CHANGELOG](../../CHANGELOG.md)
+Updated: 2026-09-23 | Status: Alpha · v0.1.2 | 9.10 of 10 phases complete | see [CHANGELOG](../../CHANGELOG.md)
 
 ---
 

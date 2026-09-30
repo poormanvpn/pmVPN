@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Fleet shared constants and types
 // MIT License
 //

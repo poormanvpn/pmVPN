@@ -217,7 +217,7 @@ curl http://localhost:2203/status
 Returns:
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "uptime": 3600,
   "wallets": 2
 }

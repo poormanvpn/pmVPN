@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // crypto-ssh: SSH Key → Wallet Derivation (The Reverse Direction)
 // MIT License
 //

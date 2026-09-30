@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // PMVPN Server Entry Point — runs from project root
 // This wrapper ensures proper module resolution for the enhanced pmVPN server
 

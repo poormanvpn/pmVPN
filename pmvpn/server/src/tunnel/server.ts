@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Tunnel Server — multiplexed VPN over SSH channel
 // MIT License
 //

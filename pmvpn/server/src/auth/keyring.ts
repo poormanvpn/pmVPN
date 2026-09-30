@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Keyring store — enrolled public keys, one ring per wallet, one key per port
 // MIT License
 //

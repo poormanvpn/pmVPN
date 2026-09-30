@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Firewall — iptables rules for transparent proxying
 // MIT License
 //

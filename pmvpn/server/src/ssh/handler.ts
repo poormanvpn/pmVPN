@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // SSH connection handler — per-connection auth and session lifecycle
 // MIT License
 

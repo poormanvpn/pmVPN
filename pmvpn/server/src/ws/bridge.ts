@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN WebSocket Bridge — browser terminal + file browser
 // MIT License
 //

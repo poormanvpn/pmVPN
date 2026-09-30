@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Wallet → user provisioning + binding enforcement
 // MIT License
 //

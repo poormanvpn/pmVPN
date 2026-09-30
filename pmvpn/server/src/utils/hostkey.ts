@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Ed25519 host key generation and loading
 // MIT License
 //

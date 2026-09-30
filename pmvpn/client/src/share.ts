@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — P2P File Sharing UI
 // Create shares, add files, generate invites, browse received shares.
 

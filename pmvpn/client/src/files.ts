@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — File Browser
 // Browse, download, upload files via WebSocket SFTP commands.
 

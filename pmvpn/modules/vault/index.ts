@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  BANKON Vault Module — pmVPN module system integration         ║
 // ║  (c) BANKON — All Rights Reserved                              ║

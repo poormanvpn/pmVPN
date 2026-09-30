@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // SFTP worker — forked child that drops privileges before filesystem access
 // MIT License
 //

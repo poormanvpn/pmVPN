@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 
 # PMVPN Server Launcher
 # Starts the pmVPN server with modular architecture from the correct directory

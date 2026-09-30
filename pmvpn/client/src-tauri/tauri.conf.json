@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "pmVPN",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.poormanvpn.pmvpn",
   "build": {
     "frontendDist": "../dist",

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // SFTP host — owns the forked SFTP workers (one per session)
 // MIT License
 //

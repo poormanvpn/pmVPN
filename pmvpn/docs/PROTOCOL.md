@@ -2,7 +2,7 @@
 
 *Binary multiplexing protocol for TCP/UDP/DNS over SSH*
 
-Updated: 2026-03-20 | Version: 0.1.1
+Updated: 2026-03-20 | Version: 0.1.2
 
 ---
 

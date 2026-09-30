@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Tauri App — desktop + mobile
 // GPL-3.0
 //

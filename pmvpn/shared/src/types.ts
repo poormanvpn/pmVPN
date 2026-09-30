@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // PMVPN shared types
 // MIT License — shared between client and server
 

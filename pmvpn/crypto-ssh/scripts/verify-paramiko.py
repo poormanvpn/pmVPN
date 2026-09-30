@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """verify-paramiko.py — prove a pmVPN keyring key works from paramiko.
 
     python3 verify-paramiko.py --host HOST --base 2200 --key ~/.pmvpn/keys/HOST/k2-exec \

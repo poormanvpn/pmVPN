@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Share Manager — P2P file sharing
 // MIT License
 //

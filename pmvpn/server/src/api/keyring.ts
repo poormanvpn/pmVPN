@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Keyring HTTP routes — mounted on the challenge port (+3) and admin port (+7)
 // MIT License
 //

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # pmvpn-warden.sh — interactive admin CLI for pmVPN user provisioning
 #
 # Subcommands:

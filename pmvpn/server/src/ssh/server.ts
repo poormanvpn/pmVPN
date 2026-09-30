@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // SSH server factory — hardened per OpenBSD standards
 // MIT License
 //

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Fleet configuration loader
 // MIT License
 //

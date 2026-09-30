@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Fleet Control Plane — HTTP REST API for fleet-wide coordination
 // MIT License
 //

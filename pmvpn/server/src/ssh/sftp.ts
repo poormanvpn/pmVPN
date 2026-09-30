@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN SFTP Handler — real filesystem operations
 // MIT License
 //

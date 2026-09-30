@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Hostinger Module — cloud provider module for pmVPN
 // MIT License
 //

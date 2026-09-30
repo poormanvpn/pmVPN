@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — Wallet Authentication
 // Same pattern as allchain.html / chainmarketcap.html (proven working)
 // EIP-6963 + providers[] + window.ethereum fallback

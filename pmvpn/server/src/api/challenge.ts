@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // HTTP challenge endpoint — Node built-in http (no Express)
 // MIT License
 //

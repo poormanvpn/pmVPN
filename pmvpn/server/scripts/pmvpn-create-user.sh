@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
 # pmvpn-create-user.sh — pmVPN jail warden
 # Provisions an isolated Linux user bound to a single wallet address.
 #

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Tunnel Client — local proxy that tunnels traffic via mux
 // MIT License
 //

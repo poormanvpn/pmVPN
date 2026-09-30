@@ -1,7 +1,10 @@
 BANKON Vault
 (c) BANKON — All Rights Reserved
 
-This software is licensed under the GNU General Public License v3.0 (GPL-3.0).
+SPDX-License-Identifier: GPL-3.0-only
+
+This software is licensed under the GNU General Public License, version 3 only (GPL-3.0-only);
+the full text is in the repository's LICENSE.
 
 This is client-side software that runs on the client for the client.
 cypherpunk2048 standard — github.com/cypherpunk2048

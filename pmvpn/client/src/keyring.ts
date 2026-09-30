@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — Keys tab: derive, enrol, export and revoke the port-scoped keyring
 //
 // One wallet signature → eight Ed25519 keys, one per port, derived in the browser

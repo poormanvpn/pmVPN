@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — Host Key TOFU (Trust On First Use)
 // Stores server fingerprints on first connect, verifies on reconnect.
 

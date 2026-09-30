@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 #!/usr/bin/env node
 // pmvpn-keyring — derive and package the pmVPN keyring from a wallet signature
 // MIT License

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // crypto-ssh: the pmVPN keyring — one wallet signature, N port-scoped Ed25519 keys
 // MIT License
 //

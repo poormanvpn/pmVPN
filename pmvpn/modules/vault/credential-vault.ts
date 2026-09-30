@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  BANKON Vault — Pure Node.js Credential Vault                  ║
 // ║  (c) BANKON — All Rights Reserved                              ║

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Tunnel Protocol — binary multiplexing over SSH
 // MIT License
 //

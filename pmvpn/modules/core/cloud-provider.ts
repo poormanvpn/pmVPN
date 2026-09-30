@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Cloud Provider Interface — standardized provider abstraction
 // MIT License
 //

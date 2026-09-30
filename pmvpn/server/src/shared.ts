@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Inline shared constants and types (from @pmvpn/shared)
 // MIT License
 //
@@ -6,7 +7,7 @@
 
 // --- constants ---
 
-export const PROTOCOL_VERSION = '0.1.1';
+export const PROTOCOL_VERSION = '0.1.2';
 export const PROTOCOL_PREFIX = 'PMVPN';
 export const DEFAULT_BASE_PORT = 2200;
 

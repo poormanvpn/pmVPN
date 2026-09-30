@@ -1,8 +1,8 @@
 {
   "name": "@pmvpn/crypto-ssh",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Bidirectional key derivation between SSH keys and cryptocurrency wallets",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Provider Gateway — HTTP gateway for cloud provider operations
 // MIT License
 //

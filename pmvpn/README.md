@@ -3,7 +3,7 @@
 <p align="center"><em>Poor Man's VPN — Wallet-Authenticated Remote Access</em></p>
 
 <p align="center">
-  <strong>v0.1.1</strong> · Alpha · MIT Server · GPL Client
+  <strong>v0.1.2</strong> · Alpha · GPL-3.0-only
 </p>
 
 <p align="center">
@@ -312,7 +312,7 @@ pnpm run tauri:dev
 ```bash
 # Server health
 curl http://localhost:2207/status
-# → { "version": "0.1.1", "uptime": 42, "wallets": 1 }
+# → { "version": "0.1.2", "uptime": 42, "wallets": 1 }
 
 # Request a challenge
 curl "http://localhost:2203/challenge?address=0xYourAddr"
@@ -554,7 +554,7 @@ Full guide: **[docs/CLIENT.md](docs/CLIENT.md)**
 
 ```
 pmvpn/
-├── server/                          MIT License
+├── server/                          GPL-3.0-only
 │   ├── src/
 │   │   ├── index.ts                 Boot all 8 port listeners
 │   │   ├── shared.ts               Protocol constants and types
@@ -589,7 +589,7 @@ pmvpn/
 │
 ├── remote-control.sh                Claude Code Remote Control launcher
 │
-├── crypto-ssh/                      MIT License — Key derivation module
+├── crypto-ssh/                      GPL-3.0-only — Key derivation module
 │   ├── src/
 │   │   ├── index.ts                 Module exports
 │   │   ├── keyring.ts               Signature → 8 port-scoped keys, openssh-key-v1, bundle (isomorphic)
@@ -599,7 +599,7 @@ pmvpn/
 │   ├── scripts/verify-paramiko.py   Prove a ring key from paramiko (and the wrong-port refusal)
 │   └── test/keyring.test.ts         Fixed vector, ssh-keygen cross-check
 │
-├── shared/                          MIT License
+├── shared/                          GPL-3.0-only
 │   └── src/
 │       ├── constants.ts            Port offsets, protocol version
 │       └── types.ts                Auth payload, wallet entry, status
@@ -616,7 +616,7 @@ pmvpn/
 │   ├── REMOTE-CONTROL.md           Claude Remote Control
 │   └── DEVELOPMENT.md              Roadmap and phase status
 │
-└── LICENSE-SERVER-MIT
+└── (the licence: ../LICENSE, GPL-3.0-only)
 ```
 
 ---
@@ -722,10 +722,10 @@ All primitives are chosen for proven security, patent-free status, and minimal N
 
 | Component | License | Why |
 |-----------|---------|-----|
-| **Server** | [MIT](LICENSE-SERVER-MIT) | Universal deployment — home, VPS, enterprise, container |
-| **Client** | [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.html) | User freedom — PARSEC module, copyleft protects end users |
-| **Shared types** | MIT | Consumed by both sides — must be permissive |
-| **Crypto-SSH** | MIT | Embeddable in any project — zero-dependency, agnostic |
+| **All of pmVPN** (server, client, shared, crypto-ssh, the vault module, blocktalk) | [GPL-3.0-only](../LICENSE) | pmVPN makes, holds and checks keys: copyleft keeps every modification of that code open, so no black-box change to key handling can ship |
+
+Releases up to v0.1.1 keep the licences they were published under (MIT server, shared and crypto-ssh; GPL-3.0
+client).
 
 ---
 

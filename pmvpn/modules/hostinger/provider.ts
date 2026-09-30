@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Hostinger Cloud Provider — MCP integration for VPS management
 // MIT License
 //

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Module Registry — dynamic module loading and lifecycle management
 // MIT License
 //

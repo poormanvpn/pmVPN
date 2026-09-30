@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — Bootstrap
 // Upload pmVPN server to a remote machine and install it
 // through the existing WebSocket terminal + SFTP connection.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // crypto-ssh keyring tests — run with `pnpm test` (tsx --test)
 // MIT License
 //

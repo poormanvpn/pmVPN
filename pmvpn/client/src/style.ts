@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client Styles
 // Theming: gnugui/tauri-theme semantic tokens
 // Landing: lighter, readable. Terminal: green-on-black classic Linux.

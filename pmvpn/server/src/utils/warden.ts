@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Jail warden self-injection
 // MIT License
 //

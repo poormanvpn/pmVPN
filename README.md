@@ -66,7 +66,7 @@ WALLET_USER_MAP="0xYourWalletAddress:username" pnpm run dev
 
 ```bash
 curl http://localhost:2203/status
-# → { "version": "0.1.1", "uptime": 0, "wallets": 1 }
+# → { "version": "0.1.2", "uptime": 0, "wallets": 1 }
 ```
 
 Eight ports bind on startup. Ed25519 host key auto-generated. Ready to accept wallet-authenticated connections.
@@ -186,7 +186,9 @@ Thank [OpenBSD](https://www.openssh.com/).
 
 ### License
 
-**Server**: MIT — deploy anywhere &nbsp;·&nbsp; **Client**: GPL-3.0 — user freedom protected &nbsp;·&nbsp; **Shared**: MIT
+**GPL-3.0-only**, the whole of pmVPN (server, client, shared, crypto-ssh, blocktalk): software that makes, holds and checks
+keys stays open so nobody can ship a black-box modification of it ([LICENSE](LICENSE)). Releases up to v0.1.1
+keep the licences they were published under.
 
 </div>
 

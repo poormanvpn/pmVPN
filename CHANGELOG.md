@@ -3,6 +3,18 @@
 All notable changes to pmVPN. Versions follow semver; the protocol version in
 `/status` tracks the release.
 
+## [0.1.2] — 2026-09-29
+
+### Changed
+- **pmVPN is licensed GPL-3.0-only, all of it**: the server, client, shared types, crypto-ssh, the vault module
+  and blocktalk. pmVPN makes, holds and checks keys, and copyleft keeps every modification of that code open, so
+  no black-box change to key handling can ship. The full text is in `LICENSE`; every source file carries
+  `SPDX-License-Identifier: GPL-3.0-only`; the package manifests say `GPL-3.0-only`. `LICENSE-SERVER-MIT` is
+  retired.
+- Releases up to v0.1.1 keep the licences they were published under (MIT server, shared and crypto-ssh; GPL-3.0
+  client).
+- Version and protocol version 0.1.1 → 0.1.2. There are no functional changes.
+
 ## [0.1.1] — 2026-09-23
 
 ### Added

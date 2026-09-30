@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // SSH SFTP subsystem — bridges ssh2's SFTPWrapper events to our privilege-
 // dropping SFTP worker so standard sftp(1) / scp(1) clients work via wallet
 // auth.

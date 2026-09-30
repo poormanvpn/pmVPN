@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Tunnel Handlers — TCP proxy, UDP relay, DNS forwarder
 // MIT License
 //

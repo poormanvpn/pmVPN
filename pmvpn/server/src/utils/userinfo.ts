@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // Linux user uid/gid lookup
 // MIT License
 //

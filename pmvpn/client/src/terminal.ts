@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // pmVPN Client — Terminal via WebSocket Bridge
 // Connects to pmVPN server port +4 (WS Bridge).
 // Auth payload sent as first message. Shell I/O follows.
