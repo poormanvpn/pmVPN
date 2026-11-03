@@ -159,10 +159,11 @@ export class HostingerModule implements ClaudeModule {
           });
 
           if (result.success) {
+            const { credentials: _credentials, ...safe } = (result ?? {}) as Record<string, any>;
             return {
               success: true,
               message: `VPS created successfully: ${result.ip}`,
-              data: result,
+              data: safe,
               display: this.formatProvisioningResult(result),
               nextActions: [
                 'hostinger-get-ssh-access',
@@ -256,9 +257,12 @@ export class HostingerModule implements ClaudeModule {
             vpsId: params['vps-id']
           });
 
+          // The display already masks the password; the data must not carry it either,
+          // because the gateway returns data to the caller verbatim.
+          const { password: _password, rootPassword: _root, ...safe } = (result ?? {}) as Record<string, unknown>;
           return {
             success: true,
-            data: result,
+            data: { ...safe, passwordAvailable: Boolean(_password || _root) },
             display: this.formatSshAccess(result),
             nextActions: ['pmvpn-bootstrap']
           };

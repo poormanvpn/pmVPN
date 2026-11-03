@@ -2,7 +2,7 @@
 
 *Roadmap and implementation status*
 
-Updated: 2026-09-23 | Status: Alpha · v0.1.2 | 9.10 of 10 phases complete | see [CHANGELOG](../../CHANGELOG.md)
+Status: Alpha · v0.3.0 | Phase 10 is next | see [CHANGELOG](../../CHANGELOG.md)
 
 ---
 
@@ -215,7 +215,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Updated smart contract interfaces with fee-splitting (Algorand + EVM)
 - [x] Comprehensive CITADEL.md documentation
 
-### Phase 9.9: Jail + Privilege Drop ✅ (2026-05-22)
+### Phase 9.9: Jail + Privilege Drop ✅
 
 - [x] `pmvpn-create-user.sh` jail warden — quotas, restricted profile, ptrace block
 - [x] `pmvpn-warden` interactive admin CLI (add/list/show/remove/rotate)
@@ -226,7 +226,7 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Wallet binding (`~/.ssh/pmvpn_wallet`) — auth rejected on mismatch
 - [x] Derived ed25519 in `~/.ssh/authorized_keys` (`pmvpn:<wallet>:v1`) for OpenSSH fallback
 
-### Phase 9.10: Keyring ✅ (2026-09-23, v0.1.1)
+### Phase 9.10: Keyring ✅
 
 - [x] `crypto-ssh/src/keyring.ts` — one wallet signature → N port-scoped Ed25519 keys (HKDF, isomorphic)
 - [x] openssh-key-v1 encoder; `ssh-keygen -y` / `-lf` cross-check in `pnpm test`
@@ -238,12 +238,44 @@ Provide the simplest, most secure way to remotely access Linux machines using on
 - [x] Fixed: crypto-ssh `require()` under ESM; SFTP empty-dir NAME reply and channel close (stock `sftp` hung)
 - [ ] PARSEC: Rust keyring in bankon_vault + russh publickey connect (tracked in parsec-wallet)
 
-### Phase 10: Hardening (Future)
+### Phase 9.11: External Connections + Wallet Login ✅
 
-- [ ] Security audit (input validation, path traversal, replay)
-- [ ] TLS on HTTP/WS ports (self-signed or Let's Encrypt)
-- [ ] Rate limiting on challenge endpoint
-- [ ] Per-wallet connection limits
+- [x] `pmvpn-keyring login` / `logout`: wallet credentials to working `ssh` with one command (external signer, pasted signature, key file, env key)
+- [x] Host pinning at login; signatures checked against the wallet; server replies validated before anything is rendered or run
+- [x] `.env` files actually load; connection settings fail at boot when malformed
+- [x] Limits per port, per wallet and per connection; server keepalive; `PMVPN_AUTO_REGISTER`, `PMVPN_PUBLIC_HOST`, `PMVPN_SESSION_PATH`, `PMVPN_ACCEPT_ENV`
+- [x] Generated aliases multiplex over `ControlMaster` and exist only for ports that speak SSH
+- [x] `ssh -t host cmd` runs under a PTY; terminal resize, client `TERM`, exit codes and split UTF-8 all work
+- [x] Exec carries stdin EOF and backpressure, so rsync, git and stdio MCP servers work; a failed spawn no longer crashes the server
+- [x] Requests a port does not serve end with a clear message instead of hanging; `scp` works in SFTP mode
+- [x] `/challenge` registers nothing until a signature verifies
+- [x] `scripts/verify-terminal-tools.sh`: real tools against a running server
+- [ ] Verify the wallet flow on a root server with the jail warden active
+- [ ] Decide on `ssh -L` / `-D` forwarding (`k4` has no SSH listener; a new index, not a relaxed rule, if adopted)
+
+### Phase 10: Hardening (in progress)
+
+Audit record: [AUDIT.md](AUDIT.md).
+
+- [x] Security audit of the server, client, warden, shares and SFTP (input validation, path traversal, replay)
+- [x] Malformed SSH, WebSocket and HTTP input rejected without stopping the server
+- [x] Rate limiting on challenge endpoint
+- [x] Per-wallet connection limits
+- [x] Failed-authentication limit per connection; login grace time from TCP accept
+- [x] Keyring enrolment and revocation signatures bound to host, nonce and keys
+- [x] Authenticate `/diagnostics` tiers with a signature (`X-Wallet` alone is ignored)
+- [x] Provider gateway commands require the admin role; cloud credentials kept out of API data
+- [x] Root never reads or writes inside a user's home: warden, `authorized_keys` mirror and SFTP run as the user
+- [x] Sessions refused unless they run as the mapped user; never as root
+- [x] Shares: creator-only writes, validated ids and names, size limits, private directory
+- [x] Revoking a keyring ends that wallet's live sessions
+- [x] Client: untrusted text escaped, CSP without inline scripts, signing limited to pmVPN's own message shapes, host key pinned in the Keys tab
+- [ ] TLS on HTTP/WS ports (self-signed or Let's Encrypt); browser login challenges still travel over plain `ws://`
+- [ ] Bind the browser login challenge to the host (enrolment is bound; login is not yet)
+- [ ] Failed-authentication limit per source address (today it is per connection)
+- [ ] Fleet: authenticate `GET /members`, `/topology`, `/groups`, `/deploy/:id`; verify the mesh `/sync` signature; reject replayed heartbeats
+- [ ] BANKON Vault: real threshold scheme, signature verification, per-wallet vaults, 16-byte GCM tags, atomic manifest writes (not reachable from the network today)
+- [ ] Check the web client in a browser under the new CSP (built and type-checked only)
 - [ ] WalletConnect v2 for mobile wallet signing
 - [ ] Podman container image
 

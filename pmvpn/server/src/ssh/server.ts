@@ -10,6 +10,10 @@ import ssh2 from 'ssh2';
 const { Server: SSH2Server } = ssh2;
 import { handleConnection } from './handler.js';
 import { logger } from '../utils/logger.js';
+import { KEEPALIVE_COUNT_MAX, KEEPALIVE_SECONDS, LOGIN_GRACE_SECONDS, MAX_CONNECTIONS_PER_PORT } from '../config/settings.js';
+
+/** Set on each raw socket; the handler clears it once authentication succeeds. */
+export const LOGIN_DEADLINE = Symbol('pmvpn.loginDeadline');
 import type { WalletMap } from '../config/wallets.js';
 
 type PortRole = 'shell' | 'sftp' | 'exec' | 'tunnel';
@@ -51,12 +55,25 @@ export function createSSHServer(
       compress: ['none'],
     },
     ident: 'PMVPN',
-  }, (client, info) => {
+    keepaliveInterval: KEEPALIVE_SECONDS * 1000,
+    keepaliveCountMax: KEEPALIVE_COUNT_MAX,
+  } as any, (client, info) => {
     const clientInfo = {
       ip: info.ip,
       port: info.port,
     };
     handleConnection(client, clientInfo, walletMap, role, portIndex);
+  });
+
+  server.maxConnections = MAX_CONNECTIONS_PER_PORT;
+
+  // ssh2 only reports a connection after the client's version line, so a socket that
+  // never sends one would hold a slot forever. The deadline starts at TCP accept.
+  (server as any)._srv.on('connection', (socket: any) => {
+    const timer = setTimeout(() => socket.destroy(), LOGIN_GRACE_SECONDS * 1000);
+    timer.unref();
+    socket[LOGIN_DEADLINE] = timer;
+    socket.once('close', () => clearTimeout(timer));
   });
 
   server.on('error', (err) => {

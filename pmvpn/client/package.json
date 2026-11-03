@@ -1,6 +1,6 @@
 {
   "name": "@pmvpn/client",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "pmVPN client — wallet-authenticated remote access UI",
   "license": "GPL-3.0-only",
   "type": "module",

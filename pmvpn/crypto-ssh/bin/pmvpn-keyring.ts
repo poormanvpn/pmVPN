@@ -1,27 +1,11 @@
-// SPDX-License-Identifier: GPL-3.0-only
 #!/usr/bin/env node
-// pmvpn-keyring — derive and package the pmVPN keyring from a wallet signature
-// MIT License
-//
-// Usage:
-//   pmvpn-keyring message --host-fp SHA256:…
-//       Print the exact text to personal_sign (do this in your wallet).
-//
-//   pmvpn-keyring derive --signature 0x… --host-fp SHA256:… --address 0x… \
-//       --host vps.example.net --base-port 2200 --user w1234abcd \
-//       --host-key 'ssh-ed25519 AAAA…' [--alias vps1] [--size 8] --out DIR
-//       Write k<i>-<slug>, .pub files, ssh_config, known_hosts, keyring.json
-//       (public entries for POST /keyring) and pmvpn-keyring-<alias>.sh into DIR.
-//
-//   pmvpn-keyring enrol --server http://host:2203 --address 0x… --signature 0x… \
-//       --nonce … --host-fp SHA256:… --keyring DIR/keyring.json
-//       POST the public entries to the server after signing its challenge nonce.
-//
-// The signature must be over `message`; a wallet that signs deterministically
-// (MetaMask, Ledger, viem/ethers local accounts) yields the same ring every time.
+// SPDX-License-Identifier: GPL-3.0-only
+// pmvpn-keyring — log in from wallet credentials; derive and package the keyring
 
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { login, logout } from '../src/login.js';
+import { enrolMessage } from '../src/enrol.js';
 import {
   derivationMessage, seedFromSignature, deriveKeyring, wipeKeyring, toPublicEntries,
   renderSshConfig, renderKnownHosts, renderBundleScript, keyFileName, DEFAULT_KEYRING_SIZE,
@@ -47,14 +31,82 @@ function need(opts: Record<string, string>, key: string): string {
   return v;
 }
 
+const USAGE = `pmvpn-keyring — your wallet is your SSH key
+
+Log in from wallet credentials (derive, enrol, install, then plain ssh works):
+  pmvpn-keyring login --host HOST (--host-fp SHA256:… | --tofu) [--alias NAME]
+      [--base-port 2200] [--api URL] [--size 8] [--json] <wallet>
+  pmvpn-keyring logout --host HOST [--alias NAME] [--base-port 2200] [--api URL] <wallet>
+
+<wallet> is one of:
+  --address 0x… --sign-cmd 'CMD'   CMD prints a signature for $PMVPN_SIGN_MESSAGE, e.g.
+                                   cast wallet sign --ledger "$PMVPN_SIGN_MESSAGE"
+  --address 0x…                    paste each signature from your wallet when asked
+  --key-file PATH                  hex private key, mode 0600 (dedicated agent wallet)
+  PMVPN_WALLET_KEY in the env      same, for CI and agents
+
+Manual steps:
+  pmvpn-keyring message --host-fp SHA256:…
+      Print the exact text to personal_sign.
+  pmvpn-keyring derive --signature 0x… --host-fp SHA256:… --address 0x… --out DIR
+      [--host H --base-port 2200 --user U --host-key 'ssh-ed25519 AAAA…' --alias A --size 8]
+      Write keys, keyring.json and, with the target options, ssh_config, known_hosts and a bundle.
+  pmvpn-keyring message --nonce N --keyring DIR/keyring.json
+      Print the enrolment text for nonce N (from GET /challenge) and exactly these keys.
+  pmvpn-keyring enrol --server http://host:2203 --address 0x… --signature 0x… --nonce N
+      --keyring DIR/keyring.json [--host-fp SHA256:…]
+      POST the public keys with a signature over that enrolment text.
+`;
+
 function usage(): void {
-  console.log(readFileSync(new URL(import.meta.url)).toString().split('\n').filter((l) => l.startsWith('//')).slice(1, 22).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+  console.log(USAGE);
 }
 
 async function main(): Promise<void> {
   const { cmd, opts } = parseArgs(process.argv.slice(2));
 
+  if (cmd === 'login' || cmd === 'logout') {
+    const wallet = { address: opts.address, keyFile: opts['key-file'], signCmd: opts['sign-cmd'] };
+    const where = {
+      host: need(opts, 'host'),
+      basePort: opts['base-port'] ? parseInt(opts['base-port'], 10) : undefined,
+      api: opts.api,
+      alias: opts.alias,
+    };
+    if (cmd === 'logout') {
+      const out = await logout({ ...wallet, ...where, hostFp: opts['host-fp'] });
+      console.log(`${out.revoked ? 'ring revoked on the server' : 'the server had no ring for this wallet'}; removed local keys for ${out.alias}`);
+      process.exit(0);
+    }
+    const out = await login({
+      ...wallet,
+      ...where,
+      size: opts.size ? parseInt(opts.size, 10) : undefined,
+      hostFp: opts['host-fp'],
+      tofu: opts.tofu === 'true',
+    });
+    if (opts.json === 'true') {
+      console.log(JSON.stringify(out, null, 2));
+    } else {
+      console.log(`logged in to ${where.host} as ${out.user} (${out.address})`);
+      console.log(`host key ${out.hostFingerprint}`);
+      console.log(`  ssh    ${out.hosts.shell}              interactive terminal`);
+      console.log(`  ssh -t ${out.hosts.shell} claude       interactive program on the server`);
+      console.log(`  ssh    ${out.hosts.exec} 'uptime'      scripted command`);
+      console.log(`  sftp   ${out.hosts.sftp}               file transfer`);
+      console.log(`  rsync -a ./site/ ${out.hosts.sync}:www/`);
+    }
+    process.exit(0); // the prompt's reader may still hold stdin open
+  }
+
   if (cmd === 'message') {
+    if (opts.nonce) {
+      // Step two of a manual enrolment: the text that authorises exactly these keys.
+      const ringFile = JSON.parse(readFileSync(need(opts, 'keyring'), 'utf-8'));
+      const fp = opts['host-fp'] || ringFile.hostFingerprint;
+      console.log(enrolMessage(fp, opts.nonce, ringFile.keys.map((k: any) => ({ index: k.index, publicKey: k.publicKey }))));
+      return;
+    }
     console.log(derivationMessage(need(opts, 'host-fp')));
     return;
   }

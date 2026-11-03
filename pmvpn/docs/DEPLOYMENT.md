@@ -49,6 +49,24 @@ The server generates an Ed25519 host key at `~/.pmvpn/hostkey` on first run.
 | `LOG_LEVEL` | `info` | Logging: debug, info, warn, error |
 | `PMVPN_SHELL` | `/bin/bash` | Shell binary for PTY sessions |
 | `PMVPN_HOME_BASE` | `/home` | Base directory for user home dirs |
+| `PMVPN_ENV_FILE` | (none) | Env file to load. Unset: `./.env`, then `~/.pmvpn/.env`. Real environment variables win. |
+| `PMVPN_PUBLIC_HOST` | (none) | Name written into generated `ssh_config` files |
+| `PMVPN_AUTO_REGISTER` | `true` | `false`: only wallets in the map or `wallets.json` may log in |
+| `PMVPN_MAX_CONNECTIONS_PER_PORT` | `256` | Sockets one SSH port accepts, before authentication |
+| `PMVPN_MAX_CONNECTIONS_PER_WALLET` | `32` | Authenticated connections per wallet, across SSH and WebSocket |
+| `PMVPN_MAX_SESSIONS_PER_CONNECTION` | `16` | Channels on one SSH connection |
+| `PMVPN_LOGIN_GRACE_SECONDS` | `30` | Seconds to authenticate, from TCP accept |
+| `PMVPN_MAX_AUTH_FAILURES` | `6` | Failed attempts per SSH connection before it is closed |
+| `PMVPN_CHALLENGES_PER_MINUTE` | `30` | Login challenges per client address per minute |
+| `PMVPN_SHARES_DIR` | `~/.pmvpn/shares` | P2P share storage, created mode 0700 |
+| `PMVPN_HOSTINGER_MCP_VERSION` | `3.1.0` | Exact `hostinger-api-mcp` version run by npx |
+| `PMVPN_KEEPALIVE_SECONDS` | `30` | Seconds between keepalive probes; `0` turns them off |
+| `PMVPN_KEEPALIVE_COUNT_MAX` | `3` | Unanswered probes before a connection is dropped |
+| `PMVPN_SESSION_PATH` | `/usr/local/bin:/usr/bin:/bin` | Session `PATH`; a leading `~/` means the user's home |
+| `PMVPN_ACCEPT_ENV` | `LANG,LC_*,COLORTERM` | Variables a client may set with `SendEnv`/`SetEnv`; `PATH`, `LD_*` and similar are always refused |
+| `PMVPN_KEYRING_SIZE` | `8` | Keys a wallet may enrol, up to 64 |
+
+`server/.env.example` explains each one. See [GUIDE-TERMINAL-TOOLS.md](GUIDE-TERMINAL-TOOLS.md) for clients.
 
 ### Wallet Map File
 
@@ -217,7 +235,7 @@ curl http://localhost:2203/status
 Returns:
 ```json
 {
-  "version": "0.1.2",
+  "version": "0.3.0",
   "uptime": 3600,
   "wallets": 2
 }

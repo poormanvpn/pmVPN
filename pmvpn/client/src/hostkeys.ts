@@ -147,6 +147,17 @@ export function exportProfiles(): string {
 /**
  * Import connection profiles.
  */
+/** A profile from a file is untrusted: plain host, numeric port, short name, nothing else. */
+function cleanConnection(c: any): { id: string; name: string; host: string; port: string; status: 'offline'; payload: null } | null {
+  if (!c || typeof c !== 'object') return null;
+  const host = String(c.host ?? '');
+  const port = String(c.port ?? '');
+  if (!/^[A-Za-z0-9.:_-]{1,253}$/.test(host) || !/^\d{1,5}$/.test(port) || +port < 1 || +port > 65535) return null;
+  const name = String(c.name ?? host).replace(/[\u0000-\u001f]/g, '').slice(0, 80) || host;
+  const id = /^[A-Za-z0-9-]{1,64}$/.test(String(c.id ?? '')) ? String(c.id) : crypto.randomUUID();
+  return { id, name, host, port, status: 'offline', payload: null };
+}
+
 export function importProfiles(json: string): { connections: number; keys: number } {
   try {
     const data = JSON.parse(json);
@@ -156,9 +167,11 @@ export function importProfiles(json: string): { connections: number; keys: numbe
     if (data.connections) {
       const existing = JSON.parse(localStorage.getItem('pmvpn-connections') || '[]');
       const existingIds = new Set(existing.map((c: any) => `${c.host}:${c.port}`));
-      for (const conn of data.connections) {
-        if (!existingIds.has(`${conn.host}:${conn.port}`)) {
+      for (const raw of Array.isArray(data.connections) ? data.connections : []) {
+        const conn = cleanConnection(raw);
+        if (conn && !existingIds.has(`${conn.host}:${conn.port}`)) {
           existing.push(conn);
+          existingIds.add(`${conn.host}:${conn.port}`);
           connCount++;
         }
       }
@@ -167,7 +180,8 @@ export function importProfiles(json: string): { connections: number; keys: numbe
 
     if (data.hostkeys) {
       const keys = loadKeys();
-      for (const [id, entry] of Object.entries(data.hostkeys)) {
+      for (const [id, entry] of Object.entries(data.hostkeys as Record<string, any>)) {
+        if (!/^[A-Za-z0-9.:_\[\]-]{1,300}$/.test(id) || typeof entry?.fingerprint !== 'string' || entry.fingerprint.length > 200) continue;
         if (!keys[id]) {
           keys[id] = entry as HostKeyEntry;
           keyCount++;

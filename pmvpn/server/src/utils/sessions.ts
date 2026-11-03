@@ -18,6 +18,8 @@ export interface ActiveSession {
 }
 
 const sessions = new Map<string, ActiveSession>();
+// Kept apart from ActiveSession so diagnostics never serialise a function.
+const closers = new Map<string, () => void>();
 let sessionCounter = 0;
 
 /**
@@ -29,7 +31,8 @@ export function registerSession(
   role: string,
   type: ActiveSession['type'],
   clientIP: string,
-  clientPort: number
+  clientPort: number,
+  close?: () => void,
 ): string {
   const id = `s${++sessionCounter}-${Date.now().toString(36)}`;
   const now = Date.now();
@@ -44,6 +47,7 @@ export function registerSession(
     connectedAt: now,
     lastActivity: now,
   });
+  if (close) closers.set(id, close);
   return id;
 }
 
@@ -60,6 +64,19 @@ export function touchSession(id: string): void {
  */
 export function removeSession(id: string): void {
   sessions.delete(id);
+  closers.delete(id);
+}
+
+/** End every live session of a wallet, e.g. after its keyring is revoked. Returns how many. */
+export function closeWalletSessions(wallet: string): number {
+  const w = wallet.toLowerCase();
+  let n = 0;
+  for (const s of Array.from(sessions.values())) {
+    if (s.wallet !== w) continue;
+    const close = closers.get(s.id);
+    if (close) { try { close(); } catch {} n++; }
+  }
+  return n;
 }
 
 /**

@@ -220,6 +220,13 @@ See `pmvpn/docs/GUIDE-*.md` files for step-by-step setup instructions.
 ## Configuration
 
 ### Server Configuration
+All settings live in `pmvpn/server/.env.example`; `server/src/config/settings.ts` parses the
+connection settings and fails at boot on a malformed value. `config/env.ts` loads `.env` and
+must stay the first import in each entry point (`index.ts`, `pmvpn-server-entry.ts`).
+- **External access**: `PMVPN_HOST`, `PMVPN_PUBLIC_HOST`, `PMVPN_AUTO_REGISTER`
+- **Multiple connections**: `PMVPN_MAX_CONNECTIONS_PER_PORT`, `PMVPN_MAX_CONNECTIONS_PER_WALLET`, `PMVPN_MAX_SESSIONS_PER_CONNECTION`, `PMVPN_KEEPALIVE_*`
+- **Terminal tools**: `PMVPN_SESSION_PATH`, `PMVPN_ACCEPT_ENV`
+- **Abuse limits**: `PMVPN_LOGIN_GRACE_SECONDS`, `PMVPN_MAX_AUTH_FAILURES`, `PMVPN_CHALLENGES_PER_MINUTE`
 - **WALLET_USER_MAP**: Environment variable mapping wallet addresses to Linux users
   - Format: `"0xWalletAddress:username,0xOther:otheruser"`
 - **Base port**: Configurable, defaults to 2200
@@ -260,6 +267,8 @@ See `pmvpn/docs/PROTOCOL.md` for complete wire format specification.
 - **`pmvpn/docs/GUIDE-LAPTOP-TO-DESKTOP.md`**: Laptop → desktop over LAN
 - **`pmvpn/docs/BOOTSTRAP.md`**: Self-installation methods
 - **`pmvpn/docs/DEVELOPMENT.md`**: Roadmap and status
+- **`pmvpn/docs/GUIDE-TERMINAL-TOOLS.md`**: Wallet login, Claude Code, ssh/sftp/rsync/git, multiple connections
+- **`pmvpn/docs/AUDIT.md`**: Security audit — fixed and open findings
 - **`pmvpn/docs/KEYRING.md`**: One signature → eight port-scoped keys; publickey auth for OpenSSH/paramiko
 - **`CHANGELOG.md`**: Release notes; bump `PROTOCOL_VERSION` in both `shared/src/constants.ts` and `server/src/shared.ts`
 - **`TOKEN_GATED_ACCESS_DESIGN.md`**: Token-gated access control architecture
@@ -301,6 +310,29 @@ The remote control system is built on extensible modules:
 - **Fleet modules**: Server discovery, grouping, scaling, health monitoring
 - **Deployment modules**: Rolling deployments, blue-green, canary releases
 - **Custom modules**: User-defined workflows and integrations
+
+## Wallet login for terminal tools
+
+`pnpm keyring login` (`crypto-ssh/src/login.ts`) goes from wallet credentials to working `ssh`
+aliases. See `pmvpn/docs/GUIDE-TERMINAL-TOOLS.md`. Run `pnpm test` in `crypto-ssh/` and
+`scripts/verify-terminal-tools.sh <alias>` against a running server after changing session code.
+
+## Roadmap
+
+`pmvpn/docs/DEVELOPMENT.md` carries no dates: maintain its tasks instead. Dated history belongs in `CHANGELOG.md`.
+
+## Security rules
+
+- Root never touches a file inside a user's home: run it as the user (`runuser`, or a
+  child with the user's uid via `sessionIdentity`). Homes are user-controlled; links in them
+  can point anywhere.
+- Sessions get their uid/gid only from `sessionIdentity()` (`utils/userinfo.ts`).
+- Every async network handler has an error boundary; validate shapes before use.
+- Text from servers, files, profiles or the chain reaches the client DOM through `esc()`
+  (`client/src/escape.ts`) or `textContent`.
+- The client signs only pmVPN message shapes (`client/src/auth.ts`); enrolment and revocation
+  messages are built by the client, never taken from a server.
+- Open findings live in `pmvpn/docs/AUDIT.md`; tick roadmap tasks, don't date them.
 
 ## Keyring rules
 

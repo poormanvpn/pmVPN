@@ -6,6 +6,7 @@
 // Enhanced with modular cloud provider integration.
 // Keys are identity. Verification replaces trust.
 
+import { loadedEnvFiles } from './config/env.js'; // must stay the first import
 import { loadOrGenerateHostKey } from './utils/hostkey.js';
 import { ensureWardenInstalled } from './utils/warden.js';
 import { loadWalletMap } from './config/wallets.js';
@@ -20,7 +21,7 @@ import ModuleRegistry from '../../modules/registry.js';
 import { createProviderGateway } from '../../modules/core/provider-gateway.js';
 
 async function main(): Promise<void> {
-  logger.info({ version: PROTOCOL_VERSION }, 'PMVPN server starting');
+  logger.info({ version: PROTOCOL_VERSION, envFiles: loadedEnvFiles }, 'PMVPN server starting');
 
   // Self-inject jail warden into /usr/local/bin if we're root and it's missing.
   // Auto-registration in handler.ts/ws bridge.ts depends on this script.

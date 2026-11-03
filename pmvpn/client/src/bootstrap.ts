@@ -24,6 +24,19 @@ export async function bootstrapServer(
   basePort: number,
   log: (msg: string, level?: string) => void,
 ): Promise<boolean> {
+  // Both values are written into a shell script and the wallet map on the remote.
+  if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(remoteUser) || remoteUser === 'root') {
+    log('bootstrap: the remote user must be a plain, non-root Linux user name', 'error');
+    return false;
+  }
+  if (!Number.isInteger(basePort) || basePort < 1024 || basePort > 65528) {
+    log('bootstrap: base port must be between 1024 and 65528', 'error');
+    return false;
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) {
+    log('bootstrap: invalid wallet address', 'error');
+    return false;
+  }
   log('bootstrap: starting remote server installation...', 'info');
 
   // Helper: execute a command via shell and wait for output

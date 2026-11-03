@@ -10,6 +10,9 @@
     "paths": {
       "@pmvpn/crypto-ssh/keyring": [
         "../crypto-ssh/src/keyring.ts"
+      ],
+      "@pmvpn/crypto-ssh/enrol": [
+        "../crypto-ssh/src/enrol.ts"
       ]
     },
     "types": [

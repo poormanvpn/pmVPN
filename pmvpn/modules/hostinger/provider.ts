@@ -17,6 +17,12 @@ import {
   ProvisioningLocation
 } from '../core/cloud-provider.js';
 
+const HOSTINGER_MCP_VERSION = (() => {
+  const v = process.env.PMVPN_HOSTINGER_MCP_VERSION?.trim() || '3.1.0';
+  if (!/^\d+\.\d+\.\d+$/.test(v)) throw new Error(`PMVPN_HOSTINGER_MCP_VERSION must be an exact version like 3.1.0 (got "${v}")`);
+  return v;
+})();
+
 export class HostingerProvider extends CloudProvider {
   readonly name = 'hostinger';
   readonly displayName = 'Hostinger VPS';
@@ -393,10 +399,13 @@ export class HostingerProvider extends CloudProvider {
 
   private async callMcpTool(tool: string, params: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      // Spawn hostinger-api-mcp process
-      const mcpProcess = spawn('npx', ['hostinger-api-mcp@latest'], {
+      // Pinned, never @latest: this runs with the server's privileges, so a new release
+      // must be a deliberate upgrade. Only what npx needs is passed, not the server's secrets.
+      const mcpProcess = spawn('npx', ['--yes', `hostinger-api-mcp@${HOSTINGER_MCP_VERSION}`], {
         env: {
-          ...process.env,
+          PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin',
+          HOME: process.env.HOME ?? '/root',
+          ...(process.env.npm_config_cache ? { npm_config_cache: process.env.npm_config_cache } : {}),
           API_TOKEN: this.apiKey
         },
         stdio: ['pipe', 'pipe', 'pipe']

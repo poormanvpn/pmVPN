@@ -5,6 +5,7 @@
 // Wallet-authenticated terminal client.
 // Connects to a pmVPN server via the Challenge API + WebSocket bridge.
 
+import '@xterm/xterm/css/xterm.css'; // bundled, not fetched from a CDN at runtime
 import { createApp } from './app';
 
 const app = document.getElementById('app')!;

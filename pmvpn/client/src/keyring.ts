@@ -6,11 +6,14 @@
 // private halves never leave this device except inside the bundle the participant
 // downloads; the server only ever receives public lines.
 
+import { esc } from './escape';
 import {
   derivationMessage, seedFromSignature, deriveKeyring, wipeKeyring, toPublicEntries,
-  renderBundleScript, type KeyringKey,
+  renderBundleScript, fingerprintSSH, parsePublicKeyLine, type KeyringKey,
 } from '@pmvpn/crypto-ssh/keyring';
-import { fetchChallenge, signAndBuildPayload, signMessage } from './auth';
+import { enrolMessage, revokeMessage } from '@pmvpn/crypto-ssh/enrol';
+import { fetchChallenge, signMessage } from './auth';
+import { verifyHostKey } from './hostkeys';
 
 function mk(tag: string, cls = '', html = ''): HTMLElement {
   const e = document.createElement(tag);
@@ -19,9 +22,6 @@ function mk(tag: string, cls = '', html = ''): HTMLElement {
   return e;
 }
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-}
 
 interface EnrolResponse {
   enrolled: number;
@@ -102,9 +102,9 @@ export function createKeysPanel(
     for (const k of keys) {
       const item = mk('div', 'pmvpn-share-item pmvpn-keys-item');
       item.innerHTML =
-        `<span class="pmvpn-keys-index">k${k.index}</span>`
+        `<span class="pmvpn-keys-index">k${esc(k.index)}</span>`
         + `<span class="pmvpn-keys-slug">${esc(k.slug)}</span>`
-        + `<span class="pmvpn-keys-port">:${basePort + k.index}</span>`
+        + `<span class="pmvpn-keys-port">:${esc(basePort + k.index)}</span>`
         + `<code class="pmvpn-keys-fp">${esc(k.fingerprint)}</code>`
         + `<span class="pmvpn-keys-state">${enrolled ? 'enrolled' : 'local'}</span>`;
       list.appendChild(item);
@@ -121,15 +121,24 @@ export function createKeysPanel(
         deriveBtn.disabled = true;
         return;
       }
+      // Trust on first use: the fingerprint arrives over plain HTTP, so a change since
+      // the last visit stops everything until the user clears the stored key.
+      if (verifyHostKey(conn.host, String(basePort), serverFp) === 'mismatch') {
+        statusText.textContent = `host key changed for ${conn.host} (now ${serverFp}). If you did not rotate it, this may be an impostor. Remove the stored key in your profiles to continue.`;
+        deriveBtn.disabled = true;
+        revokeBtn.disabled = true;
+        serverFp = null;
+        return;
+      }
       deriveBtn.disabled = false;
       const res = await fetch(`${api}/keyring?address=${walletAddress}`, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const g = await res.json();
-        statusText.innerHTML = `host <code>${esc(serverFp)}</code> · ${g.keys.length} of ${keyringSize} keys enrolled ${new Date(g.enrolledAt).toLocaleString()}`;
+        statusText.innerHTML = `host <code>${esc(serverFp)}</code> · ${esc(g.keys?.length)} of ${esc(keyringSize)} keys enrolled ${esc(new Date(g.enrolledAt).toLocaleString())}`;
         revokeBtn.disabled = false;
         if (!ring) renderList(g.keys, true);
       } else {
-        statusText.innerHTML = `host <code>${esc(serverFp)}</code> · no keyring enrolled (server accepts ${keyringSize})`;
+        statusText.innerHTML = `host <code>${esc(serverFp)}</code> · no keyring enrolled (server accepts ${esc(keyringSize)})`;
         revokeBtn.disabled = true;
         if (!ring) renderList([], false);
       }
@@ -139,9 +148,12 @@ export function createKeysPanel(
     }
   }
 
-  async function signedAuth(): Promise<{ address: string; signature: string; nonce: string }> {
+  // Enrolment and revocation sign a message this client builds: host, nonce and, for
+  // enrolment, these exact keys. A signature seen in transit can't enrol other keys.
+  async function signedAction(build: (nonce: string) => string): Promise<{ address: string; signature: string; nonce: string }> {
     const ch = await fetchChallenge(api, walletAddress);
-    return JSON.parse(await signAndBuildPayload(ch.message, ch.nonce));
+    if (!/^[0-9a-f]{64}$/.test(String(ch.nonce))) throw new Error('server sent a malformed nonce');
+    return { address: walletAddress, signature: await signMessage(build(ch.nonce)), nonce: ch.nonce };
   }
 
   deriveBtn.addEventListener('click', async () => {
@@ -159,19 +171,25 @@ export function createKeysPanel(
       renderList(keys, false);
       log(`${conn.name}: keyring — ${keys.length} keys derived, enrolling…`, 'info');
 
-      const auth = await signedAuth();
+      const publicKeys = toPublicEntries(keys).map((k) => ({ index: k.index, publicKey: k.publicKey }));
+      const fp = serverFp;
+      const auth = await signedAction((nonce) => enrolMessage(fp, nonce, publicKeys));
       const res = await fetch(`${api}/keyring`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...auth, hostFingerprint: serverFp, keys: toPublicEntries(keys).map((k) => ({ index: k.index, publicKey: k.publicKey })) }),
+        body: JSON.stringify({ ...auth, hostFingerprint: fp, keys: publicKeys }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      // The bundle pins body.hostKey; it must be the key we derived the ring for.
+      if (fingerprintSSH(parsePublicKeyLine(String(body.hostKey)).publicKey) !== fp) {
+        throw new Error('server enrolled under a different host key than it reported');
+      }
       ring.enrol = body as EnrolResponse;
       renderList(keys, true);
       bundleBtn.disabled = false;
       revokeBtn.disabled = false;
-      statusText.innerHTML = `host <code>${esc(serverFp)}</code> · ${body.enrolled} keys enrolled as <code>${esc(body.user)}</code>`;
+      statusText.innerHTML = `host <code>${esc(serverFp)}</code> · ${esc(body.enrolled)} keys enrolled as <code>${esc(body.user)}</code>`;
       log(`${conn.name}: keyring — ${body.enrolled} keys enrolled for ${body.user}. Download the bundle to use them from ssh/sftp/paramiko.`, 'success');
     } catch (e: any) {
       log(`${conn.name}: keyring — ${e?.message || e}`, 'error');
@@ -202,7 +220,9 @@ export function createKeysPanel(
   revokeBtn.addEventListener('click', async () => {
     revokeBtn.disabled = true;
     try {
-      const auth = await signedAuth();
+      if (!serverFp) throw new Error('no verified host fingerprint');
+      const fp = serverFp;
+      const auth = await signedAction((nonce) => revokeMessage(fp, nonce));
       const res = await fetch(`${api}/keyring`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(auth) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);

@@ -1,6 +1,8 @@
 # Keyring — one wallet signature, eight port-scoped SSH keys
 
-*pmVPN 0.1.1*
+*pmVPN 0.2.0*
+
+Shortest path: `pnpm keyring login`, covered in [GUIDE-TERMINAL-TOOLS.md](GUIDE-TERMINAL-TOOLS.md). This page explains the mechanism.
 
 pmVPN's promise is "your wallet is your SSH key". Until 0.1.1 that was only true
 inside pmVPN's own client: the server accepted one authentication method, a JSON
@@ -77,13 +79,28 @@ it in full before signing.
 
 ```
 POST http://<host>:<base+3>/keyring
-{ "address": "0x…", "signature": "0x…", "nonce": "…",     ← the usual challenge, signed
+{ "address": "0x…", "signature": "0x…", "nonce": "…",     ← nonce from GET /challenge
   "hostFingerprint": "SHA256:…",                          ← must equal the server's
   "keys": [ { "index": 0, "publicKey": "ssh-ed25519 AAAA…" }, … ] }
 ```
 
-The server runs the same three steps as SSH login (consume nonce → `viem.verifyMessage`
-→ `provisionWallet`), refuses a fingerprint that is not its own, stores the public
+Since 0.3.0 the signature is over an **enrolment message**, not the raw challenge
+(`crypto-ssh/src/enrol.ts`, mirrored in `server/src/api/keyring.ts`):
+
+```
+PMVPN-ENROL:v1:<host fingerprint>:<nonce>:<keys digest>
+PMVPN-REVOKE:v1:<host fingerprint>:<nonce>              ← for DELETE /keyring
+keys digest = hex SHA-256 of "<index> <base64 key blob>\n" lines, sorted by index
+```
+
+The challenge API runs over plain HTTP, so anyone on the path can see a signature. A
+signature over the bare challenge could have been reused to enrol the observer's keys;
+this one only ever authorises the exact keys it names, on this host, once. Key comments
+are not part of the digest. `pmvpn-keyring message --nonce N --keyring keyring.json`
+prints the text for a manual enrolment.
+
+The server consumes the nonce, checks the signature against that message with
+`viem.verifyMessage`, then runs `provisionWallet`, refuses a fingerprint that is not its own, stores the public
 keys in `~/.pmvpn/keyrings/<wallet>.json`, rewrites only the `pmvpn:<wallet>:k*`
 lines of the user's `authorized_keys`, and answers with everything a client needs:
 
@@ -94,7 +111,8 @@ lines of the user's `authorized_keys`, and answers with everything a client need
 ```
 
 `GET /keyring?address=0x…` lists indices and fingerprints (public data).
-`DELETE /keyring` with a signed nonce revokes the ring and strips the mirror lines.
+`DELETE /keyring` with a signed revoke message revokes the ring, strips the mirror lines
+and ends the wallet's live sessions.
 `GET /status` now includes `hostFingerprint`, `basePort` and `keyringSize`.
 
 ## The bundle — a working environment in one file
@@ -104,7 +122,7 @@ a POSIX `sh` script whose private keys sit in quoted heredocs. Running it instal
 
 ```
 ~/.pmvpn/keys/<alias>/k0-shell … k7-admin   (0600)   + .pub files
-~/.pmvpn/keys/<alias>/ssh_config             one Host alias per port, absolute paths
+~/.pmvpn/keys/<alias>/ssh_config             one Host alias per SSH port (+0 +1 +2 +5), absolute paths
 ~/.pmvpn/keys/<alias>/known_hosts            the server host key pinned for every port
 ~/.ssh/config                                gains `Include ~/.pmvpn/keys/<alias>/ssh_config` once
 ~/.ssh/known_hosts                           gains the missing lines only
@@ -116,7 +134,7 @@ After that, with nothing pmVPN-specific in the loop:
 ssh  vps1-shell            # interactive terminal, k0
 sftp vps1-sftp             # file transfer, k1
 ssh  vps1-exec 'uptime'    # scripted commands, k2
-rsync -e 'ssh -F ~/.ssh/config' ./site/ vps1-sftp:www/
+rsync -a ./site/ vps1-sync:www/    # rsync needs the sync port: the SFTP port runs no commands
 ```
 
 and from Python:
@@ -136,6 +154,9 @@ user, the wallet address, or `pmvpn`; the key already says which wallet it is.
 
 ```bash
 cd pmvpn/crypto-ssh && pnpm install
+pnpm keyring login   --host vps1.example.net --host-fp SHA256:… --alias vps1 --address 0x… --sign-cmd '…'
+                                                              # all of the steps below, then install
+pnpm keyring logout  --host vps1.example.net --alias vps1 --address 0x… --sign-cmd '…'
 pnpm keyring message --host-fp SHA256:…                       # text to sign in your wallet
 pnpm keyring derive  --signature 0x… --host-fp SHA256:… --address 0x… \
      --host vps1.example.net --base-port 2200 --user w1234abcd \
@@ -146,6 +167,7 @@ pnpm keyring enrol   --server http://vps1.example.net:2203 --address 0x… \
 
 ## Revoke and rotate
 
+- **Both sides**: `pnpm keyring logout`.
 - **Server side**: Keys tab → Revoke, or `DELETE /keyring`, or `pmvpn-warden keyring-remove <user|wallet>`.
 - **Client side**: delete `~/.pmvpn/keys/<alias>` and the `Include` line.
 - **Rotate**: revoke, then derive again. The ring is deterministic for a given
@@ -160,7 +182,7 @@ pnpm keyring enrol   --server http://vps1.example.net:2203 --address 0x… \
 | OpenSSH `ssh`/`sftp`/`scp` | 7.x+ | openssh-key-v1 private keys, `IdentitiesOnly yes` |
 | paramiko | 2.x+ | `Ed25519Key.from_private_key_file` |
 | ssh2 (Node) | 1.x | pmVPN's own server library |
-| rsync, git, ansible | any | via `ssh -F ~/.ssh/config <alias>` |
+| rsync, git, ansible | any | through the `<alias>-sync` or `<alias>-exec` Host |
 | Legacy `pmvpn:<wallet>:v1` warden key | unchanged | still written by `pmvpn-create-user.sh`; never removed by the ring |
 
 Older pmVPN clients keep using the JSON-password method; both methods land in the

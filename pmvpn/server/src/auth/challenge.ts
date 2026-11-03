@@ -9,6 +9,10 @@ import { randomBytes } from 'node:crypto';
 import { PROTOCOL_PREFIX } from '../shared.js';
 import type { ChallengeResponse } from '../shared.js';
 import { logger } from '../utils/logger.js';
+import { RateLimiter } from './ratelimit.js';
+import { CHALLENGES_PER_MINUTE } from '../config/settings.js';
+
+const perClient = new RateLimiter(CHALLENGES_PER_MINUTE, 60_000);
 
 const NONCE_TTL_MS = 60_000;
 const MAX_PENDING = 1000; // prevent memory exhaustion
@@ -34,7 +38,12 @@ setInterval(() => {
  * Generate a fresh challenge for a wallet address.
  * Returns { nonce, message, expires } — the client signs `message`.
  */
-export function createChallenge(address: string): ChallengeResponse | null {
+export function createChallenge(address: string, clientKey = 'unknown'): ChallengeResponse | null {
+  // Without this one client could fill the whole store and lock everyone out of login.
+  if (!perClient.allow(clientKey)) {
+    logger.warn({ client: clientKey }, 'challenge rate limit reached');
+    return null;
+  }
   if (store.size >= MAX_PENDING) {
     logger.warn('challenge store full — rejecting new challenge');
     return null;
@@ -55,7 +64,8 @@ export function createChallenge(address: string): ChallengeResponse | null {
  * Consume a nonce — returns the signed message if valid, null if expired/unknown.
  * Single-use: nonce is deleted on retrieval.
  */
-export function consumeChallenge(nonce: string): string | null {
+export function consumeChallenge(nonce: unknown): string | null {
+  if (typeof nonce !== 'string' || !/^[0-9a-f]{64}$/.test(nonce)) return null;
   const entry = store.get(nonce);
   if (!entry) {
     logger.warn({ nonce: nonce.slice(0, 8) }, 'unknown nonce');

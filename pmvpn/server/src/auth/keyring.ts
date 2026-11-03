@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import {
-  readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, chownSync, chmodSync, renameSync,
+  readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, renameSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -21,7 +21,8 @@ import { KEYRING_SIZE } from '../config/ports.js';
 import { portSlug, KEYRING_VERSION } from '../shared.js';
 import type { KeyringEntry } from '../shared.js';
 import { logger } from '../utils/logger.js';
-import { lookupUser, canDropPrivileges } from '../utils/userinfo.js';
+import { sessionIdentity } from '../utils/userinfo.js';
+import { execFileSync } from 'node:child_process';
 
 const KEYRINGS_DIR = join(homedir(), '.pmvpn', 'keyrings');
 const BASE_HOME = process.env.PMVPN_HOME_BASE || '/home';
@@ -174,7 +175,8 @@ export function saveKeyring(
 
   mkdirSync(KEYRINGS_DIR, { recursive: true, mode: 0o700 });
   unindexRing(addr);
-  writeFileSync(ringPath(addr), JSON.stringify(ring, null, 2) + '\n', { mode: 0o600 });
+  writeFileSync(ringPath(addr) + '.tmp', JSON.stringify(ring, null, 2) + '\n', { mode: 0o600 });
+  renameSync(ringPath(addr) + '.tmp', ringPath(addr));
   indexRing(ring);
   logger.info({ address: addr, keys: entries.length }, 'keyring enrolled');
   return ring;
@@ -191,13 +193,19 @@ export function deleteKeyring(address: string): boolean {
 
 // ─── authorized_keys mirror ──────────────────────────────────────────────────
 
-function authorizedKeysPathFor(username: string): { path: string; uid?: number; gid?: number } | null {
-  // Same rule as provision.ts: the jail lives under PMVPN_HOME_BASE. In production
-  // that is the passwd home; in a non-root dev run it keeps us out of the real ~/.ssh.
-  const info = lookupUser(username);
-  const home = join(BASE_HOME, username);
-  if (!existsSync(home)) return null;
-  return { path: join(home, '.ssh', 'authorized_keys'), uid: info?.uid, gid: info?.gid };
+// The mirror is read and written inside a home the user controls. As root, both happen
+// in a child that runs as the user, so a planted link can't turn them into root
+// reads or writes. Without root, the server already is the user (see sessionIdentity).
+const READ_SCRIPT = 'cat -- "$1" 2>/dev/null || true';
+const WRITE_SCRIPT = 'umask 077; mkdir -p -- "$1" && chmod 700 -- "$1" && cat > "$2.pmvpn-new" && mv -f -- "$2.pmvpn-new" "$2"';
+
+function inHome(username: string, script: string, args: string[], input?: string): string {
+  const id = sessionIdentity(username);
+  if (!id.ok) throw new Error(id.error);
+  return execFileSync('sh', ['-c', script, 'sh', ...args], {
+    uid: id.uid, gid: id.gid, input, encoding: 'utf-8',
+    env: { PATH: '/usr/bin:/bin' }, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+  });
 }
 
 /**
@@ -207,31 +215,23 @@ function authorizedKeysPathFor(username: string): { path: string; uid?: number; 
  */
 export function syncAuthorizedKeys(username: string, address: string, ring: StoredKeyring | null): number {
   const addr = address.toLowerCase();
-  const target = authorizedKeysPathFor(username);
-  if (!target) {
+  // Same rule as provision.ts: the jail lives under PMVPN_HOME_BASE.
+  const home = join(BASE_HOME, username);
+  if (!existsSync(home)) {
     logger.warn({ username }, 'authorized_keys sync skipped — home directory missing');
     return -1;
   }
-  const sshDir = join(target.path, '..');
+  const sshDir = join(home, '.ssh');
+  const path = join(sshDir, 'authorized_keys');
   const marker = `pmvpn:${addr}:k`;
-  let existing: string[] = [];
-  try { existing = readFileSync(target.path, 'utf-8').split('\n'); } catch {}
-  const kept = existing.filter((l) => l.trim() !== '' && !l.includes(marker));
   const mine = ring ? ring.keys.map((k) => {
     const opts = authorizedKeysOptions(k.index);
     return opts ? `${opts} ${k.publicKey}` : k.publicKey;
   }) : [];
-  const body = [...kept, ...mine].join('\n') + '\n';
-
   try {
-    mkdirSync(sshDir, { recursive: true, mode: 0o700 });
-    const tmp = target.path + '.pmvpn.tmp';
-    writeFileSync(tmp, body, { mode: 0o600 });
-    if (canDropPrivileges() && target.uid !== undefined && target.gid !== undefined) {
-      try { chownSync(tmp, target.uid, target.gid); chownSync(sshDir, target.uid, target.gid); } catch {}
-    }
-    chmodSync(tmp, 0o600);
-    renameSync(tmp, target.path);
+    const existing = inHome(username, READ_SCRIPT, [path]).split('\n');
+    const kept = existing.filter((l) => l.trim() !== '' && !l.includes(marker));
+    inHome(username, WRITE_SCRIPT, [sshDir, path], [...kept, ...mine].join('\n') + '\n');
   } catch (err: any) {
     logger.warn({ username, err: err.message }, 'authorized_keys sync failed');
     return -1;

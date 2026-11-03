@@ -243,10 +243,23 @@ export async function fetchChallenge(serverUrl: string, address: string): Promis
   return res.json();
 }
 
+// A server picks the login challenge text, so check it before the wallet signs it.
+// Anything but a plain login challenge for this nonce (a keyring derivation message,
+// say, whose signature would reveal the user's keys) is refused.
+const LOGIN_CHALLENGE = /^PMVPN:([0-9a-f]{64}):\d{1,12}$/;
+// Messages this client builds itself. Nothing else is ever signed.
+const OWN_MESSAGES = [
+  /^PMVPN-KEYRING:v1:SHA256:[A-Za-z0-9+/]{43}$/,
+  /^PMVPN-ENROL:v1:SHA256:[A-Za-z0-9+/]{43}:[0-9a-f]{64}:[0-9a-f]{64}$/,
+  /^PMVPN-REVOKE:v1:SHA256:[A-Za-z0-9+/]{43}:[0-9a-f]{64}$/,
+];
+
 export async function signAndBuildPayload(message: string, nonce: string): Promise<string> {
   if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
     throw new Error('No verified session — connect wallet first');
   }
+  const m = LOGIN_CHALLENGE.exec(message);
+  if (!m || m[1] !== nonce) throw new Error('server sent an unexpected challenge; refusing to sign it');
   const signature = await walletClient.signMessage({
     account: connectedAddress as `0x${string}`,
     message,
@@ -262,6 +275,7 @@ export async function signMessage(message: string): Promise<string> {
   if (!sessionActive || !walletClient || !connectedAddress || !sessionProof) {
     throw new Error('No verified session — connect wallet first');
   }
+  if (!OWN_MESSAGES.some((re) => re.test(message))) throw new Error('refusing to sign an unrecognised message');
   return walletClient.signMessage({ account: connectedAddress as `0x${string}`, message });
 }
 

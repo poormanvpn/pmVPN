@@ -21,10 +21,11 @@ import { verifyWalletSignature } from '../auth/verifier.js';
 import { consumeChallenge } from '../auth/challenge.js';
 import { provisionWallet } from '../auth/provision.js';
 import { createSftpHost, type SftpHost } from '../ssh/sftp-host.js';
-import { createShare, addFileToShare, getShare, canAccess, listShareFiles, getShareFile, removeShare, listShares, buildInviteMessage } from '../share/manager.js';
+import { createShare, canCreateShare, addFileToShare, getShare, canAccess, listShareFiles, getShareFile, removeShare, listShares, buildInviteMessage } from '../share/manager.js';
 import { logger } from '../utils/logger.js';
-import { registerSession, removeSession, touchSession } from '../utils/sessions.js';
-import { lookupUser, canDropPrivileges } from '../utils/userinfo.js';
+import { getSessionsForWallet, registerSession, removeSession, touchSession } from '../utils/sessions.js';
+import { MAX_CONNECTIONS_PER_WALLET, sessionPath } from '../config/settings.js';
+import { lookupUser, canDropPrivileges, sessionIdentity } from '../utils/userinfo.js';
 import type { WalletMap } from '../config/wallets.js';
 import type { AuthPayload } from '../shared.js';
 
@@ -53,7 +54,8 @@ export function createWsBridge(walletMap: WalletMap) {
     res.end();
   });
 
-  const wss = new WebSocketServer({ server: httpServer });
+  // 20 MB file uploads arrive base64-encoded, so allow a little over 4/3 of that.
+  const wss = new WebSocketServer({ server: httpServer, maxPayload: 28 * 1024 * 1024 });
 
   wss.on('connection', (ws, req) => {
     const clientIp = req.socket.remoteAddress || 'unknown';
@@ -70,10 +72,17 @@ export function createWsBridge(walletMap: WalletMap) {
       }
     }, 30000);
 
-    ws.on('message', async (raw) => {
+    ws.on('message', (raw) => {
+      onMessage(raw).catch((err) => {
+        logger.error({ client: clientIp, err: err?.message }, 'ws: message handler failed');
+        try { ws.send(JSON.stringify({ type: 'error', error: 'request failed' })); } catch {}
+      });
+    });
+
+    const onMessage = async (raw: any): Promise<void> => {
       // Reject oversized messages to prevent DoS
       const MAX_WS_MESSAGE = 20 * 1024 * 1024; // 20 MB (covers base64 file uploads)
-      if (raw.length > MAX_WS_MESSAGE) {
+      if ((raw as Buffer).length > MAX_WS_MESSAGE) {
         ws.send(JSON.stringify({ type: 'error', error: 'message too large' }));
         return;
       }
@@ -83,6 +92,10 @@ export function createWsBridge(walletMap: WalletMap) {
         msg = JSON.parse(raw.toString());
       } catch {
         ws.send(JSON.stringify({ type: 'error', error: 'invalid JSON' }));
+        return;
+      }
+      if (!msg || typeof msg !== 'object') {
+        ws.send(JSON.stringify({ type: 'error', error: 'expected a JSON object' }));
         return;
       }
 
@@ -122,6 +135,12 @@ export function createWsBridge(walletMap: WalletMap) {
           return;
         }
 
+        if (getSessionsForWallet(addrLower).length >= MAX_CONNECTIONS_PER_WALLET) {
+          ws.send(JSON.stringify({ type: 'auth', ok: false, error: 'wallet is at its connection limit' }));
+          ws.close();
+          return;
+        }
+
         session = { username: prov.entry.user, homeDir: prov.homeDir, address: addrLower, shell: null, sftp: null };
         authenticated = true;
 
@@ -133,7 +152,7 @@ export function createWsBridge(walletMap: WalletMap) {
         }
 
         // Track session
-        const wsSessionId = registerSession(addrLower, prov.entry.user, prov.entry.role, 'websocket', clientIp, 0);
+        const wsSessionId = registerSession(addrLower, prov.entry.user, prov.entry.role, 'websocket', clientIp, 0, () => ws.close());
 
         logger.info({ client: clientIp, user: prov.entry.user, address: addrLower, newUser: prov.newUser }, 'ws: authenticated');
         ws.send(JSON.stringify({
@@ -161,8 +180,9 @@ export function createWsBridge(walletMap: WalletMap) {
           // Privilege drop: spawn PTY as the jailed user when root.
           const userInfo = lookupUser(session.username);
           const drop = canDropPrivileges();
-          if (drop && !userInfo) {
-            ws.send(JSON.stringify({ type: 'shell', data: `pmvpn: user ${session.username} not provisioned\r\n` }));
+          const id = sessionIdentity(session.username);
+          if (!id.ok) {
+            ws.send(JSON.stringify({ type: 'shell', data: `pmvpn: ${id.error}\r\n` }));
             return;
           }
 
@@ -171,14 +191,14 @@ export function createWsBridge(walletMap: WalletMap) {
             cols: msg.cols || 80,
             rows: msg.rows || 24,
             cwd: session.homeDir,
-            uid: drop && userInfo ? userInfo.uid : undefined,
-            gid: drop && userInfo ? userInfo.gid : undefined,
+            uid: id.uid,
+            gid: id.gid,
             env: {
               TERM: 'xterm-256color',
               USER: session.username,
               HOME: session.homeDir,
               SHELL: userInfo?.shell || DEFAULT_SHELL,
-              PATH: '/usr/local/bin:/usr/bin:/bin',
+              PATH: sessionPath(session.homeDir),
               LANG: 'en_US.UTF-8',
               PMVPN_JAIL: drop ? '1' : '0',
             },
@@ -240,7 +260,10 @@ export function createWsBridge(walletMap: WalletMap) {
 
         switch (msg.cmd) {
           case 'create': {
-            // Create a new share
+            if (!canCreateShare(session.address)) {
+              result = { ok: false, error: 'share limit reached for this wallet' };
+              break;
+            }
             const meta = createShare(session.address, msg.name || 'Shared Files', {
               expires: msg.expires || null,
               maxDownloads: msg.maxDownloads || 0,
@@ -253,9 +276,7 @@ export function createWsBridge(walletMap: WalletMap) {
           case 'add-file': {
             // Add a file to a share (from user's home or base64 data)
             if (msg.data) {
-              const buffer = Buffer.from(msg.data, 'base64');
-              const ok = addFileToShare(msg.shareId, msg.filename, buffer);
-              result = { ok, error: ok ? undefined : 'share not found' };
+              result = addFileToShare(msg.shareId, msg.filename, Buffer.from(String(msg.data), 'base64'), session.address);
             } else if (msg.sourcePath) {
               // Copy from user's filesystem (uses the privilege-dropped worker)
               if (!session.sftp) {
@@ -264,9 +285,8 @@ export function createWsBridge(walletMap: WalletMap) {
               }
               const srcResult = await session.sftp.exec('get', msg.sourcePath);
               if (srcResult.ok && srcResult.data) {
-                const buffer = Buffer.from(srcResult.data, 'base64');
-                const ok = addFileToShare(msg.shareId, msg.filename || msg.sourcePath.split('/').pop()!, buffer);
-                result = { ok, error: ok ? undefined : 'share not found' };
+                const name = msg.filename || String(msg.sourcePath).split('/').pop()!;
+                result = addFileToShare(msg.shareId, name, Buffer.from(srcResult.data, 'base64'), session.address);
               } else {
                 result = { ok: false, error: srcResult.error || 'file not found' };
               }
@@ -346,7 +366,7 @@ export function createWsBridge(walletMap: WalletMap) {
         ws.send(JSON.stringify({ type: 'share', id, result }));
         return;
       }
-    });
+   };
 
     ws.on('close', () => {
       clearTimeout(authTimeout);

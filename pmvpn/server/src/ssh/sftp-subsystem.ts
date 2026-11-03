@@ -34,8 +34,13 @@ interface ReadHandle {
 interface WriteHandle {
   kind: 'write';
   path: string;
-  chunks: Buffer[];
+  data: Buffer;
+  size: number;
 }
+
+// Same ceiling sftp.ts applies on save. Checked per WRITE, so an oversized upload is
+// refused before it fills the server's memory rather than after.
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 interface DirHandle {
   kind: 'dir';
   path: string;
@@ -92,7 +97,7 @@ export function attachSftpSubsystem(
     const wantRead = (flags & OPEN_MODE.READ) !== 0 || !wantWrite;
 
     if (wantWrite && !wantRead) {
-      sftpStream.handle(reqId, newHandle({ kind: 'write', path, chunks: [] }));
+      sftpStream.handle(reqId, newHandle({ kind: 'write', path, data: Buffer.alloc(0), size: 0 }));
       return;
     }
 
@@ -111,10 +116,22 @@ export function attachSftpSubsystem(
     sftpStream.data(reqId, h.data.subarray(offset, end));
   });
 
-  sftpStream.on('WRITE', (reqId, handleBuf, _offset, data) => {
+  sftpStream.on('WRITE', (reqId, handleBuf, offset, data) => {
     const h = getHandle(handleBuf);
     if (!h || h.kind !== 'write') return sftpStream.status(reqId, STATUS_CODE.FAILURE);
-    h.chunks.push(Buffer.from(data));
+    const end = offset + data.length;
+    if (!Number.isSafeInteger(end) || end > MAX_FILE_BYTES) {
+      dropHandle(handleBuf);
+      return sftpStream.status(reqId, STATUS_CODE.FAILURE, 'file too large (max 50MB)');
+    }
+    // Clients may pipeline writes out of order; place each chunk at its offset.
+    if (end > h.data.length) {
+      const grown = Buffer.alloc(Math.max(end, Math.min(h.data.length * 2, MAX_FILE_BYTES)));
+      h.data.copy(grown, 0, 0, h.size);
+      h.data = grown;
+    }
+    Buffer.from(data).copy(h.data, offset);
+    h.size = Math.max(h.size, end);
     sftpStream.status(reqId, STATUS_CODE.OK);
   });
 
@@ -123,7 +140,7 @@ export function attachSftpSubsystem(
     dropHandle(handleBuf);
     if (!h) return sftpStream.status(reqId, STATUS_CODE.FAILURE);
     if (h.kind === 'write') {
-      const body = Buffer.concat(h.chunks);
+      const body = h.data.subarray(0, h.size);
       const res = await host.exec('put', h.path, body.toString('base64'));
       return sftpStream.status(reqId, res.ok ? STATUS_CODE.OK : STATUS_CODE.PERMISSION_DENIED, res.error);
     }

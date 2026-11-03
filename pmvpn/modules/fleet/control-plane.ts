@@ -149,7 +149,7 @@ async function handleChallenge(
     return;
   }
 
-  const challenge = createChallenge(address);
+  const challenge = createChallenge(address, req.socket.remoteAddress || 'unknown');
   if (!challenge) {
     await sendError(res, 503, 'Challenge store full, try again');
     return;

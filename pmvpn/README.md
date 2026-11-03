@@ -3,7 +3,7 @@
 <p align="center"><em>Poor Man's VPN — Wallet-Authenticated Remote Access</em></p>
 
 <p align="center">
-  <strong>v0.1.2</strong> · Alpha · GPL-3.0-only
+  <strong>v0.3.0</strong> · Alpha · GPL-3.0-only
 </p>
 
 <p align="center">
@@ -233,6 +233,20 @@ private halves stay on the client as openssh-key-v1 files. Every SSH port then
 also accepts `publickey`, but only for the key whose index equals the port offset:
 `k1-sftp` opens +1 and is refused on +0, +2, +4. See [docs/KEYRING.md](docs/KEYRING.md).
 
+### Wallet login for Claude and terminal tools
+
+```bash
+cd crypto-ssh && pnpm install
+pnpm keyring login --host vps1.example.net --alias vps1 --host-fp SHA256:… \
+  --address 0xYourWallet --sign-cmd 'cast wallet sign --ledger "$PMVPN_SIGN_MESSAGE"'
+
+ssh vps1-exec 'uptime'             # scripted, and fast: connections are multiplexed
+ssh -t vps1-shell claude           # interactive programs on the server
+rsync -a ./site/ vps1-sync:www/
+```
+
+See [docs/GUIDE-TERMINAL-TOOLS.md](docs/GUIDE-TERMINAL-TOOLS.md).
+
 ### Jail warden + privilege drop
 
 On first login the server invokes `/usr/local/bin/pmvpn-create-user.sh`
@@ -312,7 +326,7 @@ pnpm run tauri:dev
 ```bash
 # Server health
 curl http://localhost:2207/status
-# → { "version": "0.1.2", "uptime": 42, "wallets": 1 }
+# → { "version": "0.3.0", "uptime": 42, "wallets": 1 }
 
 # Request a challenge
 curl "http://localhost:2203/challenge?address=0xYourAddr"
@@ -333,6 +347,9 @@ curl "http://localhost:2203/challenge?address=0xYourAddr"
 | `LOG_LEVEL` | `info` | Logging verbosity: debug, info, warn, error |
 | `PMVPN_SHELL` | `/bin/bash` | Shell binary for PTY sessions |
 | `PMVPN_HOME_BASE` | `/home` | Base directory for user home directories |
+
+Connection limits, auto-registration and session settings are listed in
+[`server/.env.example`](server/.env.example). Copy it to `server/.env` or `~/.pmvpn/.env`.
 
 ### Wallet Map File
 

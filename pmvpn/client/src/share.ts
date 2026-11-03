@@ -2,6 +2,7 @@
 // pmVPN Client — P2P File Sharing UI
 // Create shares, add files, generate invites, browse received shares.
 
+import { esc } from './escape';
 import type { TerminalInstance } from './terminal';
 
 function mk(tag: string, cls = '', html = ''): HTMLElement {
@@ -119,8 +120,8 @@ export function createSharePanel(
       for (const share of result.shares) {
         const item = mk('div', 'pmvpn-share-item');
         item.innerHTML = `
-          <div class="pmvpn-share-name">${share.name}</div>
-          <div class="pmvpn-share-meta">${share.files.length} file(s) · ${share.downloads} download(s)</div>
+          <div class="pmvpn-share-name">${esc(share.name)}</div>
+          <div class="pmvpn-share-meta">${esc(share.files.length)} file(s) · ${esc(share.downloads)} download(s)</div>
         `;
 
         const actions = mk('div', 'pmvpn-share-actions');
@@ -177,7 +178,7 @@ export function createSharePanel(
         sharesList.innerHTML = '<div class="pmvpn-share-empty">no active shares</div>';
       }
     } catch (e: any) {
-      sharesList.innerHTML = `<div class="pmvpn-share-empty">${e.message}</div>`;
+      sharesList.innerHTML = `<div class="pmvpn-share-empty">${esc(e.message)}</div>`;
     }
   }
 
@@ -237,13 +238,13 @@ export function createSharePanel(
     try {
       const result = await sendShare('files', { shareId });
       if (!result.ok) {
-        filesView.innerHTML = `<div class="pmvpn-share-empty">${result.error}</div>`;
+        filesView.innerHTML = `<div class="pmvpn-share-empty">${esc(result.error)}</div>`;
         return;
       }
 
       filesView.innerHTML = '';
       const header = mk('div', 'pmvpn-share-files-header');
-      header.innerHTML = `<strong>${result.share.name}</strong> · ${result.files.length} file(s)`;
+      header.innerHTML = `<strong>${esc(result.share.name)}</strong> · ${esc(result.files.length)} file(s)`;
       const closeBtn = document.createElement('button');
       closeBtn.className = 'pmvpn-btn-icon';
       closeBtn.textContent = '✕';
@@ -255,14 +256,14 @@ export function createSharePanel(
         const row = mk('div', 'pmvpn-share-file-row');
         row.innerHTML = `
           <span class="pmvpn-file-icon">📄</span>
-          <span class="pmvpn-file-name">${file.name}</span>
-          <span class="pmvpn-file-size">${fmtSize(file.size)}</span>
+          <span class="pmvpn-file-name">${esc(file.name)}</span>
+          <span class="pmvpn-file-size">${esc(fmtSize(file.size))}</span>
         `;
         row.addEventListener('click', () => downloadShareFile(shareId, file.name, file.size));
         filesView.appendChild(row);
       }
     } catch (e: any) {
-      filesView.innerHTML = `<div class="pmvpn-share-empty">${e.message}</div>`;
+      filesView.innerHTML = `<div class="pmvpn-share-empty">${esc(e.message)}</div>`;
     }
   }
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "pmVPN",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "identifier": "com.poormanvpn.pmvpn",
   "build": {
     "frontendDist": "../dist",
@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws: wss: http: https:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' ws: wss: http: https:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; script-src 'self'; object-src 'none'; base-uri 'none'"
     }
   },
   "bundle": {
