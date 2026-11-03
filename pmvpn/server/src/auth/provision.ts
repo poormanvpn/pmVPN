@@ -14,11 +14,12 @@
 //      `owner=` matches the authenticated wallet. Reject on mismatch.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, openSync, closeSync, constants as fsc } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { WalletMap } from '../config/wallets.js';
 import type { WalletEntry } from '../shared.js';
+import { AUTO_REGISTER } from '../config/settings.js';
 import { logger } from '../utils/logger.js';
 import { forgetUser, lookupUser } from '../utils/userinfo.js';
 
@@ -37,7 +38,10 @@ function readBoundWallet(home: string): string | null {
   const path = join(home, '.ssh', 'pmvpn_wallet');
   if (!existsSync(path)) return null;
   try {
-    const body = readFileSync(path, 'utf-8');
+    // O_NOFOLLOW: the binding must be a real file in the user's .ssh, not a link elsewhere.
+    const fd = openSync(path, fsc.O_RDONLY | fsc.O_NOFOLLOW);
+    let body: string;
+    try { body = readFileSync(fd, 'utf-8'); } finally { closeSync(fd); }
     const m = body.match(/^owner=(0x[0-9a-fA-F]{40})/m);
     return m ? m[1].toLowerCase() : null;
   } catch {
@@ -48,12 +52,14 @@ function readBoundWallet(home: string): string | null {
 function persistWalletMap(address: string, entry: WalletEntry): void {
   try {
     const dir = join(homedir(), '.pmvpn');
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
     const walletsPath = join(dir, 'wallets.json');
     const existing: Record<string, WalletEntry> = {};
     try { Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8'))); } catch {}
     existing[address] = entry;
-    writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
+    // Private and atomic: it maps every wallet to an account, and a torn write loses logins.
+    writeFileSync(walletsPath + '.tmp', JSON.stringify(existing, null, 2) + '\n', { mode: 0o600 });
+    renameSync(walletsPath + '.tmp', walletsPath);
   } catch (err: any) {
     logger.warn({ err: err.message }, 'failed to persist wallets.json');
   }
@@ -95,10 +101,12 @@ export function provisionWallet(walletAddress: string, walletMap: WalletMap): Pr
   let newUser = false;
 
   if (!entry) {
+    if (!AUTO_REGISTER) {
+      logger.warn({ address }, 'unregistered wallet refused — PMVPN_AUTO_REGISTER is off');
+      return { ok: false, error: 'wallet is not registered on this server' };
+    }
     const username = `w${address.slice(2, 10)}`;
     entry = { user: username, role: 'user' };
-    walletMap.set(address, entry);
-    persistWalletMap(address, entry);
     newUser = true;
     logger.info({ address, user: username }, 'auto-registered wallet');
   }
@@ -131,5 +139,11 @@ export function provisionWallet(walletAddress: string, walletMap: WalletMap): Pr
     try { mkdirSync(homeDir, { recursive: true, mode: 0o700 }); } catch {}
   }
 
+  // Remember a new wallet only once its account exists, so a failed provisioning
+  // leaves nothing behind that later shadows WALLET_USER_MAP.
+  if (!walletMap.has(address)) {
+    walletMap.set(address, entry);
+    persistWalletMap(address, entry);
+  }
   return { ok: true, entry, homeDir, newUser };
 }

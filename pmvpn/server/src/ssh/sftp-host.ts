@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import readline from 'node:readline';
-import { canDropPrivileges, lookupUser } from '../utils/userinfo.js';
+import { canDropPrivileges, lookupUser, sessionIdentity } from '../utils/userinfo.js';
 import { sftpLs, sftpGet, sftpPut, sftpMkdir, sftpRm, sftpStat } from './sftp.js';
 import type { SftpResult } from './sftp.js';
 import { logger } from '../utils/logger.js';
@@ -32,7 +32,7 @@ function resolveWorker(): { runner: string; args: string[] } | null {
   }
   if (existsSync(tsCandidate)) {
     // Locate tsx in our local node_modules
-    const tsxBin = join(__dirname, '..', '..', '..', 'node_modules', '.bin', 'tsx');
+    const tsxBin = join(__dirname, '..', '..', 'node_modules', '.bin', 'tsx');
     if (existsSync(tsxBin)) return { runner: tsxBin, args: [tsCandidate] };
     // Fallback to ts-node loader via the current node
     return { runner: process.execPath, args: ['--import', 'tsx', tsCandidate] };
@@ -133,18 +133,18 @@ class InProcessHost implements SftpHost {
  * backed host. Otherwise returns an in-process host using sftp.ts directly.
  */
 export async function createSftpHost(username: string, homeDir: string): Promise<SftpHost> {
-  const drop = canDropPrivileges();
-  const userInfo = drop ? lookupUser(username) : null;
-
-  if (!drop || !userInfo) {
+  const id = sessionIdentity(username);
+  if (!id.ok) throw new Error(id.error);
+  if (!canDropPrivileges()) {
+    // Not root: sessionIdentity already proved the server runs as this very user.
     return new InProcessHost(homeDir);
   }
+  const userInfo = lookupUser(username)!;
 
+  // As root, file operations run only in a worker that has dropped to the user.
+  // Running them in-process would read and write through symlinks as root.
   const resolved = resolveWorker();
-  if (!resolved) {
-    logger.warn('sftp worker missing — falling back to in-process (no privilege drop)');
-    return new InProcessHost(homeDir);
-  }
+  if (!resolved) throw new Error('sftp worker missing; refusing to serve files as root');
 
   const child = spawn(resolved.runner, resolved.args, {
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -152,10 +152,9 @@ export async function createSftpHost(username: string, homeDir: string): Promise
 
   const host = new WorkerHost(child);
   const initResult = await host.init(userInfo.uid, userInfo.gid, homeDir);
-  if (!initResult.ok) {
+  if (!initResult.ok || (initResult as any).uid !== userInfo.uid) {
     host.close();
-    logger.warn({ username, error: initResult.error }, 'sftp worker setuid failed — falling back in-process');
-    return new InProcessHost(homeDir);
+    throw new Error(`sftp worker could not drop to ${username}: ${initResult.error || 'wrong uid'}`);
   }
   logger.info({ username, uid: userInfo.uid, gid: userInfo.gid, pid: child.pid }, 'sftp worker started');
   return host;

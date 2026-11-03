@@ -2,6 +2,7 @@
 // pmVPN Client — File Browser
 // Browse, download, upload files via WebSocket SFTP commands.
 
+import { esc } from './escape';
 import type { TerminalInstance } from './terminal';
 
 interface FileEntry {
@@ -113,7 +114,7 @@ export function createFileBrowser(
     try {
       const result = await term.sendSftp('ls', path);
       if (!result.ok) {
-        fileList.innerHTML = `<div class="pmvpn-files-empty">${result.error}</div>`;
+        fileList.innerHTML = `<div class="pmvpn-files-empty">${esc(result.error)}</div>`;
         return;
       }
 
@@ -170,7 +171,7 @@ export function createFileBrowser(
         fileList.appendChild(row);
       }
     } catch (e: any) {
-      fileList.innerHTML = `<div class="pmvpn-files-empty">${e.message}</div>`;
+      fileList.innerHTML = `<div class="pmvpn-files-empty">${esc(e.message)}</div>`;
     }
   }
 
@@ -180,9 +181,9 @@ export function createFileBrowser(
     row.draggable = type === 'file';
     row.innerHTML = `
       <span class="pmvpn-file-icon">${type === 'directory' ? '📁' : '📄'}</span>
-      <span class="pmvpn-file-name">${name}</span>
-      <span class="pmvpn-file-size">${size}</span>
-      <span class="pmvpn-file-date">${modified}</span>
+      <span class="pmvpn-file-name">${esc(name)}</span>
+      <span class="pmvpn-file-size">${esc(size)}</span>
+      <span class="pmvpn-file-date">${esc(modified)}</span>
     `;
 
     // Drag: file rows are draggable for cross-server and local transfer

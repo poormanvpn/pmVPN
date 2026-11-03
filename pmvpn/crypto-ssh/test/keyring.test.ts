@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,6 +19,8 @@ import {
 } from '../src/keyring.js';
 import { extractOpenSSHEd25519Seed } from '../src/ssh-to-wallet.js';
 import { deriveEd25519FromWallet } from '../src/wallet-to-ssh.js';
+import { addressFromPrivateKey, recoverPersonalSigner, signPersonalMessage } from '../src/personal-sign.js';
+import { resolveCredential } from '../src/login.js';
 
 // Hardhat account #0 signing the derivation message for a fixed test host fingerprint.
 // fp = "SHA256:" + base64(sha256("pmvpn-test-host-key")) without padding.
@@ -157,7 +159,9 @@ test('delivery renderers: ssh_config, known_hosts, bundle', () => {
   const cfg = renderSshConfig(target, ring);
   assert.match(cfg, /Host vps1-shell\n  HostName vps.example.net\n  Port 2200\n  User wf39fd6e5\n  IdentityFile ~\/.pmvpn\/keys\/vps1\/k0-shell/);
   assert.match(cfg, /Host vps1-sftp\n  HostName vps.example.net\n  Port 2201/);
-  assert.match(cfg, /Host vps1-admin\n  HostName vps.example.net\n  Port 2207/);
+  assert.match(cfg, /Host vps1-sync\n  HostName vps.example.net\n  Port 2205/);
+  assert.equal(cfg.match(/^Host /gm)?.length, 4, 'only ports that speak SSH get an alias');
+  assert.doesNotMatch(cfg, /vps1-(challenge|tunnel|claude|admin)/);
   const kh = renderKnownHosts(target, ring);
   assert.equal(kh.split('\n').filter(Boolean).length, 8);
   assert.match(kh, /^\[vps.example.net\]:2200 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIERMsT1YzwkOlUYYxpAIZpi\+mOUuTGgBFku\+FS7qCy8s$/m);
@@ -175,4 +179,66 @@ test('delivery renderers: ssh_config, known_hosts, bundle', () => {
   assert.equal(authorizedKeysOptions(4), 'restrict,port-forwarding');
   assert.equal(authorizedKeysOptions(9), 'restrict');
   assert.equal(toPublicEntries(ring)[2].fingerprint, VECTOR.fingerprints[2]);
+});
+
+const HARDHAT_0_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+test('local signing reproduces the cross-implementation vector', () => {
+  assert.equal(addressFromPrivateKey(HARDHAT_0_KEY), VECTOR.address.toLowerCase());
+  assert.equal(signPersonalMessage(HARDHAT_0_KEY, VECTOR.message), VECTOR.signature);
+  assert.equal(recoverPersonalSigner(VECTOR.signature, VECTOR.message), VECTOR.address.toLowerCase());
+  assert.notEqual(recoverPersonalSigner(VECTOR.signature, VECTOR.message + 'x'), VECTOR.address.toLowerCase());
+});
+
+test('renderers refuse values that could run code or add ssh directives', () => {
+  const ring = deriveKeyring(seedFromSignature(VECTOR.signature), VECTOR.hostFingerprint, VECTOR.address, { size: 1 });
+  const good = {
+    host: 'vps.example.net', basePort: 2200, user: 'wf39fd6e5',
+    hostKeyPublicLine: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIERMsT1YzwkOlUYYxpAIZpi+mOUuTGgBFku+FS7qCy8s',
+  };
+  assert.doesNotThrow(() => renderBundleScript(good, ring));
+  assert.doesNotThrow(() => renderBundleScript({ ...good, host: '::1' }, ring));
+  for (const user of ['$(touch /tmp/pwned)', '`id`', 'a\n  ProxyCommand sh', 'a b', '']) {
+    assert.throws(() => renderBundleScript({ ...good, user }, ring), /unsafe user/, JSON.stringify(user));
+  }
+  assert.throws(() => renderBundleScript({ ...good, host: 'h\nProxyCommand x' }, ring), /unsafe host/);
+  assert.throws(() => renderSshConfig({ ...good, host: '$(id)' }, ring), /unsafe host/);
+  assert.throws(() => renderBundleScript({ ...good, basePort: 70000 }, ring), /base port/);
+  assert.throws(() => renderKnownHosts({ ...good, hostKeyPublicLine: "ssh-ed25519 AAAA'\nx" }, ring));
+});
+
+test('credentials: a raw key is checked against the address, and a loose key file is refused', () => {
+  const none = {};
+  assert.equal(resolveCredential({}, { PMVPN_WALLET_KEY: HARDHAT_0_KEY }).address, VECTOR.address.toLowerCase());
+  assert.throws(() => resolveCredential({ address: '0x' + '1'.repeat(40) }, { PMVPN_WALLET_KEY: HARDHAT_0_KEY }), /belongs to/);
+  assert.throws(() => resolveCredential({}, none), /name a wallet/);
+  assert.throws(() => resolveCredential({ signCmd: 'x' }, none), /needs --address/);
+  assert.throws(() => resolveCredential({ address: 'nope' }, none), /40 hex/);
+  const dir = mkdtempSync(join(tmpdir(), 'pmvpn-cred-'));
+  try {
+    const f = join(dir, 'key');
+    writeFileSync(f, HARDHAT_0_KEY, { mode: 0o644 });
+    assert.throws(() => resolveCredential({ keyFile: f }, none), /chmod 600/);
+    chmodSync(f, 0o600);
+    assert.equal(resolveCredential({ keyFile: f }, none).address, VECTOR.address.toLowerCase());
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('enrolment message: bound to host, nonce and the exact keys', async () => {
+  const { enrolMessage, revokeMessage, keysDigest } = await import('../src/enrol.js');
+  const ring = deriveKeyring(seedFromSignature(VECTOR.signature), VECTOR.hostFingerprint, VECTOR.address, { size: 3 });
+  const keys = toPublicEntries(ring).map((k) => ({ index: k.index, publicKey: k.publicKey }));
+  const nonce = 'a'.repeat(64);
+  const msg = enrolMessage(VECTOR.hostFingerprint, nonce, keys);
+  assert.match(msg, /^PMVPN-ENROL:v1:SHA256:[A-Za-z0-9+/]{43}:a{64}:[0-9a-f]{64}$/);
+  // Order and comments don't matter; the key bytes and indices do.
+  const shuffled = [keys[2], keys[0], keys[1]].map((k) => ({ ...k, publicKey: k.publicKey.split(' ').slice(0, 2).join(' ') + ' other-comment' }));
+  assert.equal(keysDigest(shuffled), keysDigest(keys));
+  assert.notEqual(keysDigest([{ ...keys[0], index: 1 }, { ...keys[1], index: 0 }]), keysDigest(keys.slice(0, 2)));
+  assert.notEqual(enrolMessage(VECTOR.hostFingerprint, 'b'.repeat(64), keys), msg);
+  assert.notEqual(enrolMessage('SHA256:' + 'A'.repeat(43), nonce, keys), msg);
+  assert.equal(revokeMessage(VECTOR.hostFingerprint + '=', nonce), `PMVPN-REVOKE:v1:${VECTOR.hostFingerprint}:${nonce}`);
+  assert.throws(() => keysDigest([{ index: 0, publicKey: 'ssh-rsa AAAA' }]));
 });

@@ -11,6 +11,7 @@
 //
 // Private key NEVER touches this application.
 
+import { esc } from './escape';
 import { injectStyles } from './style';
 import { hasMetaMask, isMobile, isMetaMaskLocked, connectMetaMask, getAddress, isConnected, disconnect, fetchChallenge, signAndBuildPayload, onAccountChange } from './auth';
 import { createTerminal, type TerminalInstance } from './terminal';
@@ -214,19 +215,23 @@ export function createApp(): HTMLElement {
   bootstrapBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
   bootstrapBtn.textContent = 'Bootstrap Remote Server';
   bootstrapBtn.addEventListener('click', async () => {
+    const term = activeConnId ? sessions.get(activeConnId)?.term : undefined;
     if (!term?.isConnected()) { log('connect to a server first', 'error'); return; }
     const address = getAddress();
     if (!address) { log('connect MetaMask first', 'error'); return; }
-    const conn = connections.find(c => c.id === activeConnId);
     const port = prompt('Base port for new pmVPN server:', '8200');
     if (!port) return;
-    await bootstrapServer(term, address, conn?.name || 'user', parseInt(port), log);
+    // The Linux account the wallet maps to on the remote, not the connection's display name.
+    const remoteUser = prompt('Linux user on the remote server for this wallet:', '');
+    if (!remoteUser) return;
+    await bootstrapServer(term, address, remoteUser.trim(), parseInt(port, 10), log);
   });
 
   const deployKeyBtn = document.createElement('button');
   deployKeyBtn.className = 'pmvpn-btn pmvpn-btn-secondary';
   deployKeyBtn.textContent = 'Deploy SSH Key';
   deployKeyBtn.addEventListener('click', async () => {
+    const term = activeConnId ? sessions.get(activeConnId)?.term : undefined;
     if (!term?.isConnected()) { log('connect to a server first', 'error'); return; }
     const address = getAddress();
     if (!address) { log('connect MetaMask first', 'error'); return; }
@@ -532,9 +537,9 @@ export function createApp(): HTMLElement {
 
       const info = mk('div', 'pmvpn-conn-info');
       info.innerHTML = `
-        <div class="pmvpn-conn-name">${conn.name}</div>
-        <div class="pmvpn-conn-addr">${conn.host}:${conn.port}</div>
-        <div class="pmvpn-conn-status">${conn.status}</div>
+        <div class="pmvpn-conn-name">${esc(conn.name)}</div>
+        <div class="pmvpn-conn-addr">${esc(conn.host)}:${esc(conn.port)}</div>
+        <div class="pmvpn-conn-status">${esc(conn.status)}</div>
       `;
       info.addEventListener('click', () => doConnectTo(conn));
 
@@ -627,9 +632,9 @@ export function createApp(): HTMLElement {
       walletInfo.style.display = '';
       walletInfo.innerHTML = `
         <div style="font-family:monospace;font-size:13px;color:var(--success);padding:6px 0">
-          🟢 ${address.slice(0, 6)}...${address.slice(-4)}
+          🟢 ${esc(address.slice(0, 6))}...${esc(address.slice(-4))}
         </div>
-        <div style="font-size:11px;color:var(--muted-foreground);word-break:break-all">${address}</div>
+        <div style="font-size:11px;color:var(--muted-foreground);word-break:break-all">${esc(address)}</div>
       `;
       addrDisplay.textContent = address.slice(0, 6) + '...' + address.slice(-4);
       logoutBtn.style.display = '';
@@ -806,7 +811,7 @@ export function createApp(): HTMLElement {
     if (conn?.payload) {
       payloadSection.style.display = '';
       payloadArea.value = conn.payload;
-      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
+      sshHint.innerHTML = `SSH: <code>ssh -p ${esc(conn.port)} -o PreferredAuthentications=password user@${esc(conn.host)}</code>`;
     }
   }
 
@@ -878,7 +883,7 @@ export function createApp(): HTMLElement {
             banner.innerHTML = `
               <div style="background: rgba(63, 185, 80, 0.12); border: 1px solid rgba(63, 185, 80, 0.4); border-radius: 8px; padding: 12px 16px; margin: 8px 0; color: #b6f0c0; font-size: 13px; line-height: 1.5;">
                 <strong style="color: #3fb950;">First login — host provisioning complete.</strong><br />
-                Linux user <code>${user}</code> (${role}) created with quota ${quota}.<br />
+                Linux user <code>${esc(user)}</code> (${esc(role)}) created with quota ${esc(quota)}.<br />
                 Wallet binding written to <code>~/.ssh/pmvpn_wallet</code>; tagged ed25519 key added to <code>~/.ssh/authorized_keys</code>.<br />
                 <button style="margin-top: 6px; background: none; border: 1px solid rgba(63,185,80,0.5); color: #b6f0c0; padding: 2px 10px; border-radius: 4px; cursor: pointer;">dismiss</button>
               </div>
@@ -935,7 +940,7 @@ export function createApp(): HTMLElement {
       tabBar.style.display = '';
       payloadSection.style.display = '';
       payloadArea.value = payload;
-      sshHint.innerHTML = `SSH: <code>ssh -p ${conn.port} -o PreferredAuthentications=password user@${conn.host}</code>`;
+      sshHint.innerHTML = `SSH: <code>ssh -p ${esc(conn.port)} -o PreferredAuthentications=password user@${esc(conn.host)}</code>`;
 
     } catch (e: any) {
       conn.status = 'error';
@@ -1038,8 +1043,8 @@ export function createApp(): HTMLElement {
     } else {
       const addr = accounts[0].toLowerCase();
       walletInfo.innerHTML = `
-        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:6px 0">🟢 ${addr.slice(0, 6)}...${addr.slice(-4)}</div>
-        <div style="font-size:11px;color:#484f58;word-break:break-all">${addr}</div>
+        <div style="font-family:monospace;font-size:13px;color:#3fb950;padding:6px 0">🟢 ${esc(addr.slice(0, 6))}...${esc(addr.slice(-4))}</div>
+        <div style="font-size:11px;color:#484f58;word-break:break-all">${esc(addr)}</div>
       `;
       addrDisplay.textContent = addr.slice(0, 6) + '...' + addr.slice(-4);
       log(`account switched: ${addr.slice(0, 10)}...`, 'info');

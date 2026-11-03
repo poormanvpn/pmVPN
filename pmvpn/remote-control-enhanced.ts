@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0-only
 #!/usr/bin/env node
+// SPDX-License-Identifier: GPL-3.0-only
 // Enhanced pmVPN Remote Control — Claude Code with modular fleet coordination
 // MIT License
 //

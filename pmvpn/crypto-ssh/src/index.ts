@@ -56,6 +56,7 @@ export {
   KEYRING_MESSAGE_PREFIX,
   KEYRING_SALT,
   DEFAULT_KEYRING_SIZE,
+  SSH_PORT_INDICES,
   PORT_SLUGS,
   portSlug,
   authorizedKeysOptions,
@@ -74,6 +75,7 @@ export {
   renderSshConfig,
   renderKnownHosts,
   renderBundleScript,
+  aliasOf,
   hexToBytes,
   bytesToHex,
   toBase64,
@@ -83,3 +85,32 @@ export {
   type KeyringPublicEntry,
   type BundleTarget,
 } from './keyring.js';
+
+export {
+  // Action-bound enrolment and revocation messages (isomorphic)
+  ENROL_PREFIX,
+  REVOKE_PREFIX,
+  keysDigest,
+  enrolMessage,
+  revokeMessage,
+} from './enrol.js';
+
+export {
+  // Wallet credentials: EIP-191 signing and recovery (isomorphic)
+  addressFromPrivateKey,
+  signPersonalMessage,
+  recoverPersonalSigner,
+} from './personal-sign.js';
+
+export {
+  // Login from wallet credentials (Node only)
+  login,
+  logout,
+  resolveCredential,
+  type LoginOptions,
+  type LoginResult,
+  type LogoutOptions,
+  type CredentialOptions,
+  type WalletCredential,
+  type Signer,
+} from './login.js';

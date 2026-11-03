@@ -41,9 +41,7 @@ async function handle(req: IPCRequest): Promise<void> {
     homeDir = req.setuid.homeDir;
     try {
       // gid must drop first — otherwise we lose the privilege to set it.
-      if (typeof process.setgroups === 'function') {
-        try { process.setgroups([req.setuid.gid]); } catch {}
-      }
+      if (typeof process.setgroups === 'function') process.setgroups([req.setuid.gid]);
       if (typeof process.setgid === 'function') process.setgid(req.setuid.gid);
       if (typeof process.setuid === 'function') process.setuid(req.setuid.uid);
       dropped = true;

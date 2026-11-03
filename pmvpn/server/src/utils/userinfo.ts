@@ -59,6 +59,25 @@ export function forgetUser(username: string): void {
 }
 
 /**
+ * Decide whether a session for `username` may run, and with which ids.
+ * Root: drop to the user, never run as uid 0. Not root: only when the mapped
+ * user IS the account the server runs as, since nothing else can be enforced.
+ */
+export function sessionIdentity(username: string): { ok: true; uid?: number; gid?: number } | { ok: false; error: string } {
+  const info = lookupUser(username);
+  if (canDropPrivileges()) {
+    if (!info) return { ok: false, error: `user ${username} not provisioned` };
+    if (info.uid === 0) return { ok: false, error: 'refusing to run a session as root' };
+    return { ok: true, uid: info.uid, gid: info.gid };
+  }
+  const self = typeof process.getuid === 'function' ? process.getuid() : -1;
+  if (!info || info.uid !== self) {
+    return { ok: false, error: `server is not root and cannot act as ${username}` };
+  }
+  return { ok: true };
+}
+
+/**
  * Are we able to drop privileges? Only root can setuid to another user.
  */
 export function canDropPrivileges(): boolean {

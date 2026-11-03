@@ -7,7 +7,9 @@
   <title>pmVPN</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" sizes="256x256" href="/logo.png" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+  <!-- Script only from this origin: if any server-supplied text ever slips past
+       escaping, the browser still refuses to run it. Inline styles stay allowed. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http: https: ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 </head>
 <body>
   <div id="app"></div>

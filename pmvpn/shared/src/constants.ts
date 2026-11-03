@@ -2,7 +2,7 @@
 // PMVPN protocol constants
 // MIT License — shared between client and server
 
-export const PROTOCOL_VERSION = '0.1.2';
+export const PROTOCOL_VERSION = '0.3.0';
 export const PROTOCOL_PREFIX = 'PMVPN';
 
 // Default base port — all 8 services offset from this
@@ -47,6 +47,9 @@ export const MAX_KEYRING_SIZE = 64;
 export const PORT_SLUGS: readonly string[] = [
   'shell', 'sftp', 'exec', 'challenge', 'tunnel', 'sync', 'claude', 'admin',
 ];
+
+/** Port offsets that speak SSH. The others are HTTP or WebSocket, so no ssh alias points at them. */
+export const SSH_PORT_INDICES: readonly number[] = [0, 1, 2, 5];
 
 export function portSlug(index: number): string {
   return PORT_SLUGS[index] ?? `k${index}`;

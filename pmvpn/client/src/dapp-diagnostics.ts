@@ -5,6 +5,7 @@
 // Fetches live data from Provider Gateway (:2206) and Fleet Control Plane (:2600)
 // and renders it in the UI. Access gated by wallet signature + asset holding.
 
+import { esc } from './escape';
 import { verifyPrivilege, privilegeDisplay, type PrivilegeState, type PrivilegeLevel } from './privilege';
 
 interface DiagEndpoint {
@@ -134,7 +135,7 @@ export function createDappDiagnostics(
     walletRow.className = 'dapp-priv-row';
     walletRow.innerHTML = `
       <span class="dapp-priv-label">Wallet</span>
-      <span class="dapp-priv-value">${priv.wallet.slice(0, 6)}...${priv.wallet.slice(-4)}</span>
+      <span class="dapp-priv-value">${esc(priv.wallet.slice(0, 6))}...${esc(priv.wallet.slice(-4))}</span>
     `;
     privilegeInfo.appendChild(walletRow);
 
@@ -152,9 +153,9 @@ export function createDappDiagnostics(
       const row = document.createElement('div');
       row.className = 'dapp-priv-row';
       row.innerHTML = `
-        <span class="dapp-priv-label">${asset.symbol}</span>
+        <span class="dapp-priv-label">${esc(asset.symbol)}</span>
         <span class="dapp-priv-value" style="color:${asset.met ? 'var(--success)' : 'var(--muted-foreground)'}">
-          ${parseFloat(asset.balance).toFixed(4)}${asset.required !== '0' ? ` / ${asset.required} req` : ''}
+          ${esc(parseFloat(asset.balance).toFixed(4))}${asset.required !== '0' ? ` / ${esc(asset.required)} req` : ''}
         </span>
       `;
       privilegeInfo.appendChild(row);
@@ -171,7 +172,7 @@ export function createDappDiagnostics(
     ].filter(Boolean);
     rightsRow.innerHTML = `
       <span class="dapp-priv-label">Access</span>
-      <span class="dapp-priv-value">${rights.length ? rights.join(' · ') : 'none'}</span>
+      <span class="dapp-priv-value">${rights.length ? esc(rights.join(' · ')) : 'none'}</span>
     `;
     privilegeInfo.appendChild(rightsRow);
   }

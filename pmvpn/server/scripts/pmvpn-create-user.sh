@@ -12,7 +12,7 @@
 
 set -eu
 
-VERSION="1"
+VERSION="2"
 
 USERNAME="${1:-}"
 ROLE="${2:-user}"
@@ -71,55 +71,50 @@ else
 fi
 
 HOME_DIR="/home/$USERNAME"
-SSH_DIR="$HOME_DIR/.ssh"
 
 # Tight home — others cannot see in
 chmod 700 "$HOME_DIR"
 chown "$USERNAME:$USERNAME" "$HOME_DIR"
 
-# .ssh directory + wallet binding --------------------------------------------
-install -d -m 700 -o "$USERNAME" -g "$USERNAME" "$SSH_DIR"
+# Files inside the home are written by the user, not by root -------------------
+# The user controls this directory, so a root write could be redirected by a link
+# they planted. Running as them gives the write their privileges and nothing more.
+as_user() { runuser -u "$USERNAME" -- "$@"; }
 
-BINDING="$SSH_DIR/pmvpn_wallet"
-cat > "$BINDING" <<EOF
+KEY_TAG="pmvpn:${WALLET}:v${VERSION}"
+SHORT="$(echo "$WALLET" | cut -c3-10)"
+CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+as_user env HOME="$HOME_DIR" WALLET="$WALLET" ROLE="$ROLE" VERSION="$VERSION" KEY_TAG="$KEY_TAG" SHORT="$SHORT" CREATED="$CREATED" \
+  sh -eu -c '
+umask 077
+cd "$HOME"
+mkdir -p .ssh && chmod 700 .ssh
+
+# Wallet binding: pmVPN rejects logins whose wallet does not match owner=.
+rm -f .ssh/pmvpn_wallet
+cat > .ssh/pmvpn_wallet <<EOF
 # pmVPN wallet binding — DO NOT EDIT
 # This account is owned by the wallet listed below. pmVPN rejects
 # logins where the authenticated wallet does not match this address.
 owner=$WALLET
 role=$ROLE
-created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+created=$CREATED
 version=$VERSION
 EOF
-chmod 400 "$BINDING"
-chown "$USERNAME:$USERNAME" "$BINDING"
+chmod 400 .ssh/pmvpn_wallet
 
-# Derive (or generate) an ed25519 key tagged for this wallet ------------------
-SHORT="$(echo "$WALLET" | cut -c3-10)"
-KEY_FILE="$SSH_DIR/pmvpn_${SHORT}"
-AUTH_KEYS="$SSH_DIR/authorized_keys"
-KEY_TAG="pmvpn:${WALLET}:v${VERSION}"
+# An ed25519 key tagged for this wallet, mirrored into authorized_keys.
+KEY_FILE=".ssh/pmvpn_${SHORT}"
+[ -f "$KEY_FILE" ] || ssh-keygen -t ed25519 -f "$KEY_FILE" -N "" -C "$KEY_TAG" -q
+touch .ssh/authorized_keys
+{ grep -v -F "$KEY_TAG" .ssh/authorized_keys || true; cat "$KEY_FILE.pub"; } > .ssh/authorized_keys.pmvpn-new
+chmod 600 .ssh/authorized_keys.pmvpn-new
+mv -f .ssh/authorized_keys.pmvpn-new .ssh/authorized_keys
 
-if [ ! -f "$KEY_FILE" ]; then
-  ssh-keygen -t ed25519 -f "$KEY_FILE" -N "" -C "$KEY_TAG" -q
-  chown "$USERNAME:$USERNAME" "$KEY_FILE" "$KEY_FILE.pub"
-  chmod 600 "$KEY_FILE"
-  chmod 644 "$KEY_FILE.pub"
-fi
-
-touch "$AUTH_KEYS"
-chown "$USERNAME:$USERNAME" "$AUTH_KEYS"
-chmod 600 "$AUTH_KEYS"
-
-# Replace any existing pmvpn: entry for this wallet (idempotent)
-TMP_KEYS="$(mktemp)"
-grep -v -F "$KEY_TAG" "$AUTH_KEYS" 2>/dev/null > "$TMP_KEYS" || true
-cat "$KEY_FILE.pub" >> "$TMP_KEYS"
-install -m 600 -o "$USERNAME" -g "$USERNAME" "$TMP_KEYS" "$AUTH_KEYS"
-rm -f "$TMP_KEYS"
-
-# Restricted login env --------------------------------------------------------
-PROFILE="$HOME_DIR/.profile"
-cat > "$PROFILE" <<'EOF'
+# Restricted login environment.
+rm -f .profile
+cat > .profile <<"EOF"
 # pmVPN restricted profile — managed by jail warden
 # Sets a minimal PATH and blocks shell escapes via env tampering.
 umask 077
@@ -127,13 +122,11 @@ export PATH=/usr/bin:/bin
 export PMVPN_JAIL=1
 unset LD_PRELOAD LD_LIBRARY_PATH
 EOF
-chown "$USERNAME:$USERNAME" "$PROFILE"
-chmod 644 "$PROFILE"
+chmod 644 .profile
 
-# Pre-create vault dir so first vault op doesn't escape sandbox ---------------
-VAULT_DIR="$HOME_DIR/.bankon/vault"
-install -d -m 700 -o "$USERNAME" -g "$USERNAME" "$HOME_DIR/.bankon"
-install -d -m 700 -o "$USERNAME" -g "$USERNAME" "$VAULT_DIR"
+# Vault directory, so the first vault operation stays inside the home.
+mkdir -p .bankon/vault && chmod 700 .bankon .bankon/vault
+'
 
 # Disk quota (best-effort — only if quota tools + fs support it) --------------
 if command -v setquota >/dev/null 2>&1; then
@@ -172,9 +165,6 @@ kernel.yama.ptrace_scope = 2
 EOF
   sysctl -p "$SYSCTL_FILE" >/dev/null 2>&1 || true
 fi
-
-# Final ownership sweep so quota counts cleanly -------------------------------
-chown -R "$USERNAME:$USERNAME" "$HOME_DIR" 2>/dev/null || true
 
 echo "pmvpn warden: $USERNAME ($ROLE) bound to $WALLET — $QUOTA_LABEL"
 exit 0

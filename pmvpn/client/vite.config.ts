@@ -7,6 +7,7 @@ export default defineConfig({
     alias: {
       // The isomorphic keyring module only — the rest of crypto-ssh needs node:crypto.
       '@pmvpn/crypto-ssh/keyring': fileURLToPath(new URL('../crypto-ssh/src/keyring.ts', import.meta.url)),
+      '@pmvpn/crypto-ssh/enrol': fileURLToPath(new URL('../crypto-ssh/src/enrol.ts', import.meta.url)),
     },
   },
   server: {

@@ -5,18 +5,29 @@
 // Minimal attack surface. No framework. Manual routing.
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { join } from 'node:path';
-import { homedir, cpus, totalmem, freemem, loadavg, networkInterfaces, release, hostname as osHostname, type as osType, arch } from 'node:os';
-import { createChallenge } from '../auth/challenge.js';
+import { cpus, totalmem, freemem, loadavg, networkInterfaces, release, hostname as osHostname, type as osType, arch } from 'node:os';
+import { createChallenge, consumeChallenge } from '../auth/challenge.js';
+import { verifyWalletSignature } from '../auth/verifier.js';
 import { handleKeyringRoute } from './keyring.js';
 import { hostKeyFingerprint } from '../utils/hostkey.js';
 import { BASE_PORT, KEYRING_SIZE } from '../config/ports.js';
 import { logger } from '../utils/logger.js';
 import { getActiveSessions, getSessionsForWallet, getSessionCounts } from '../utils/sessions.js';
-import { PROTOCOL_VERSION } from '../shared.js';
+import { AUTO_REGISTER, MAX_CONNECTIONS_PER_PORT, MAX_CONNECTIONS_PER_WALLET, MAX_SESSIONS_PER_CONNECTION, PUBLIC_HOST } from '../config/settings.js';
+import { PROTOCOL_VERSION, SSH_PORT_INDICES } from '../shared.js';
 import type { WalletMap } from '../config/wallets.js';
+
+/** The wallet behind a signed request, or null. Consumes the nonce either way. */
+async function signedWallet(req: IncomingMessage): Promise<string | null> {
+  const wallet = String(req.headers['x-wallet'] || '').toLowerCase();
+  const nonce = req.headers['x-wallet-nonce'];
+  const signature = String(req.headers['x-wallet-signature'] || '');
+  if (!/^0x[0-9a-f]{40}$/.test(wallet) || !signature) return null;
+  const message = consumeChallenge(nonce);
+  if (!message) return null;
+  return (await verifyWalletSignature(wallet, message, signature)) ? wallet : null;
+}
 
 function sendJSON(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
@@ -44,14 +55,19 @@ export function createChallengeServer(walletMap: WalletMap) {
     // CORS headers for Tauri webview
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Wallet');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Wallet, X-Wallet-Nonce, X-Wallet-Signature');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       return res.end();
     }
 
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    let url: URL;
+    try {
+      url = new URL(req.url || '/', 'http://localhost');
+    } catch {
+      return sendJSON(res, 400, { error: 'bad request' });
+    }
 
     // /keyring — enrol, inspect, revoke the wallet's port-scoped key ring
     try {
@@ -64,32 +80,13 @@ export function createChallengeServer(walletMap: WalletMap) {
     // GET /challenge?address=0x...
     if (req.method === 'GET' && url.pathname === '/challenge') {
       const address = url.searchParams.get('address');
-      if (!address || !address.startsWith('0x')) {
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
         return sendJSON(res, 400, { error: 'missing or invalid address parameter' });
       }
 
-      // Auto-register: any wallet that signs gets access.
-      // Username = 'w' + first 8 hex chars of address.
-      // Persisted to wallets.json so subsequent logins are instant.
-      const addrLower = address.toLowerCase();
-      if (!walletMap.has(addrLower)) {
-        const username = `w${addrLower.slice(2, 10)}`;
-        walletMap.set(addrLower, { user: username, role: 'user' });
-        logger.info({ address: addrLower, user: username }, 'auto-registered new wallet');
-        try {
-          const walletsPath = join(homedir(), '.pmvpn', 'wallets.json');
-          const existing: Record<string, any> = {};
-          try {
-            Object.assign(existing, JSON.parse(readFileSync(walletsPath, 'utf-8')));
-          } catch {}
-          existing[addrLower] = { user: username, role: 'user' };
-          writeFileSync(walletsPath, JSON.stringify(existing, null, 2));
-        } catch (err) {
-          logger.warn({ err }, 'failed to persist wallet registration');
-        }
-      }
-
-      const challenge = createChallenge(address.toLowerCase());
+      // Nothing is registered here: the caller has proved nothing yet. provisionWallet()
+      // registers the wallet after its signature verifies.
+      const challenge = createChallenge(address.toLowerCase(), req.socket.remoteAddress || 'unknown');
       if (!challenge) {
         return sendJSON(res, 503, { error: 'server busy, try again' });
       }
@@ -109,6 +106,14 @@ export function createChallengeServer(walletMap: WalletMap) {
         basePort: BASE_PORT,
         keyringSize: KEYRING_SIZE,
         hostFingerprint,
+        publicHost: PUBLIC_HOST || null,
+        autoRegister: AUTO_REGISTER,
+        sshPorts: SSH_PORT_INDICES.map((i) => BASE_PORT + i),
+        limits: {
+          connectionsPerPort: MAX_CONNECTIONS_PER_PORT,
+          connectionsPerWallet: MAX_CONNECTIONS_PER_WALLET,
+          sessionsPerConnection: MAX_SESSIONS_PER_CONNECTION,
+        },
       });
     }
 
@@ -119,8 +124,10 @@ export function createChallengeServer(walletMap: WalletMap) {
     if (req.method === 'GET' && url.pathname === '/diagnostics') {
       try {
         // Check if requester is admin
-        const reqWallet = (req.headers['x-wallet'] as string || '').toLowerCase();
-        const reqEntry = walletMap.get(reqWallet);
+        // X-Wallet alone proves nothing, anyone can type an admin's address. The wallet
+        // must also sign a fresh challenge: X-Wallet-Nonce + X-Wallet-Signature.
+        const reqWallet = await signedWallet(req);
+        const reqEntry = reqWallet ? walletMap.get(reqWallet) : undefined;
         const isAdmin = reqEntry?.role === 'admin';
         const run = (cmd: string) => { try { return execSync(cmd, { stdio: 'pipe', timeout: 3000 }).toString().trim(); } catch { return ''; } };
 
@@ -285,7 +292,7 @@ export function createChallengeServer(walletMap: WalletMap) {
             })),
             counts: getSessionCounts(),
             // Sessions belonging to the requesting wallet
-            mine: getSessionsForWallet(reqWallet).map(s => ({
+            mine: getSessionsForWallet(reqWallet!).map(s => ({
               id: s.id,
               type: s.type,
               clientIP: s.clientIP,

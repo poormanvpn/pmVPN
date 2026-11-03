@@ -13,6 +13,7 @@ export interface TerminalInstance {
   mount: (el: HTMLElement) => void;
   connectWs: (url: string, authPayload: string, onAuth: (ok: boolean, user?: string, error?: string, info?: { newUser?: boolean; role?: string }) => void) => void;
   sendSftp: (cmd: string, path: string, data?: string) => Promise<any>;
+  sendTyped: (type: string, cmd: string, params: Record<string, any>) => Promise<any>;
   disconnect: () => void;
   destroy: () => void;
   isConnected: () => boolean;

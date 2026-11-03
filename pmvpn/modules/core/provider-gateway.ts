@@ -149,7 +149,7 @@ async function handleChallenge(
     return;
   }
 
-  const challenge = createChallenge(address);
+  const challenge = createChallenge(address, req.socket.remoteAddress || 'unknown');
   if (!challenge) {
     await sendError(res, 503, 'Challenge store full, try again');
     return;
@@ -191,6 +191,13 @@ async function handleProviderRequest(
     const authResult = await authenticateRequest(request, walletMap);
     if (!authResult.success) {
       await sendError(res, 401, authResult.error!);
+      return;
+    }
+
+    // Provider commands create, restart and expose cloud servers. Auto-registered
+    // participants have role "user", so a signature alone must not be enough.
+    if (!authResult.user!.permissions.includes('manage:providers')) {
+      await sendError(res, 403, 'admin role required for provider commands');
       return;
     }
 
@@ -266,6 +273,10 @@ async function handleFleetRequest(
     const authResult = await authenticateRequest(request, walletMap);
     if (!authResult.success) {
       await sendError(res, 401, authResult.error!);
+      return;
+    }
+    if (request.action === 'deploy' && !authResult.user!.permissions.includes('deploy:servers')) {
+      await sendError(res, 403, 'deploy:servers permission required');
       return;
     }
 
@@ -544,11 +555,14 @@ function formatForMobile(command: string, data: any): string {
 
 // Utility functions
 
+const MAX_BODY = 64 * 1024;
+
 async function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
+      if (body.length > MAX_BODY) { reject(new Error('request body too large')); req.destroy(); }
     });
     req.on('end', () => {
       resolve(body);

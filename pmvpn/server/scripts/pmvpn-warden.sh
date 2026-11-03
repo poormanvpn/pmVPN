@@ -19,7 +19,7 @@
 
 set -eu
 
-VERSION="2"
+VERSION="3"
 
 WARDEN_DIR="$(cd "$(dirname "$0")" && pwd)"
 CREATE_USER="${WARDEN_DIR}/pmvpn-create-user.sh"
@@ -183,18 +183,14 @@ cmd_show() {
 
 # Rewrite only the wallet's ring lines (tag pmvpn:<wallet>:k*), keep everything else.
 _keyring_rewrite() {
-  local user="$1" wallet="$2" lines_file="${3:-}" home ak tmp
+  local user="$1" wallet="$2" lines_file="${3:-}" lines="" home
   home="$(getent passwd "$user" | cut -d: -f6)"
-  ak="$home/.ssh/authorized_keys"
-  mkdir -p "$home/.ssh"; chmod 700 "$home/.ssh"; chown "$user:$user" "$home/.ssh"
-  touch "$ak"
-  tmp="$(mktemp)"
-  grep -v -F "pmvpn:${wallet}:k" "$ak" > "$tmp" || true
-  if [ -n "$lines_file" ]; then
-    grep -E 'ssh-ed25519 ' "$lines_file" >> "$tmp"
-  fi
-  install -m 600 -o "$user" -g "$user" "$tmp" "$ak"
-  rm -f "$tmp"
+  [ -n "$lines_file" ] && lines="$(grep -E 'ssh-ed25519 ' "$lines_file" || true)"
+  # Run as the user: root writing inside a home the user controls can be redirected.
+  printf '%s\n' "$lines" | runuser -u "$user" -- env HOME="$home" MARK="pmvpn:${wallet}:k" sh -eu -c '
+umask 077; cd "$HOME"; mkdir -p .ssh; chmod 700 .ssh; touch .ssh/authorized_keys
+{ grep -v -F "$MARK" .ssh/authorized_keys || true; grep -E "ssh-ed25519 " || true; } > .ssh/authorized_keys.pmvpn-new
+chmod 600 .ssh/authorized_keys.pmvpn-new; mv -f .ssh/authorized_keys.pmvpn-new .ssh/authorized_keys'
 }
 
 cmd_keyring_install() {
@@ -235,14 +231,13 @@ cmd_remove() {
 
   passwd -l "$user" >/dev/null 2>&1 || true
   usermod -L "$user" 2>/dev/null || true
-  if [ -f "$home/.ssh/authorized_keys" ]; then
-    grep -v -F "pmvpn:${wallet}" "$home/.ssh/authorized_keys" > "$home/.ssh/authorized_keys.tmp" || true
-    mv "$home/.ssh/authorized_keys.tmp" "$home/.ssh/authorized_keys"
-    chown "$user:$user" "$home/.ssh/authorized_keys"
-    chmod 600 "$home/.ssh/authorized_keys"
-  fi
-  rm -f "$home/.ssh/pmvpn_wallet" "$home/.ssh/pmvpn_$(echo "$wallet" | cut -c3-10)" \
-        "$home/.ssh/pmvpn_$(echo "$wallet" | cut -c3-10).pub"
+  runuser -u "$user" -- env HOME="$home" WALLET="$wallet" SHORT="$(echo "$wallet" | cut -c3-10)" sh -eu -c '
+cd "$HOME"
+if [ -f .ssh/authorized_keys ]; then
+  { grep -v -F "pmvpn:$WALLET" .ssh/authorized_keys || true; } > .ssh/authorized_keys.pmvpn-new
+  chmod 600 .ssh/authorized_keys.pmvpn-new; mv -f .ssh/authorized_keys.pmvpn-new .ssh/authorized_keys
+fi
+rm -f .ssh/pmvpn_wallet ".ssh/pmvpn_$SHORT" ".ssh/pmvpn_$SHORT.pub"' || true
 
   if confirm "Also delete the home directory and Linux user?"; then
     userdel -r "$user" 2>/dev/null || userdel "$user"

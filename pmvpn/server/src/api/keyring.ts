@@ -16,7 +16,28 @@ import { provisionWallet } from '../auth/provision.js';
 import { getKeyring, saveKeyring, deleteKeyring, syncAuthorizedKeys } from '../auth/keyring.js';
 import { hostKeyFingerprint, hostKeyPublicLine } from '../utils/hostkey.js';
 import { BASE_PORT, KEYRING_SIZE } from '../config/ports.js';
+import { PUBLIC_HOST } from '../config/settings.js';
+import { SSH_PORT_INDICES } from '../shared.js';
 import { logger } from '../utils/logger.js';
+import { closeWalletSessions } from '../utils/sessions.js';
+import { createHash } from 'node:crypto';
+
+// Mirror of crypto-ssh/src/enrol.ts.
+function keysDigest(keys: Array<{ index: number; publicKey: string }>): string {
+  const lines = [...keys]
+    .sort((a, b) => a.index - b.index)
+    .map((k) => {
+      const parts = String(k?.publicKey ?? '').trim().split(/\s+/);
+      const i = parts.indexOf('ssh-ed25519');
+      if (!Number.isInteger(k?.index) || i === -1 || !parts[i + 1]) throw new Error('keys must be { index, publicKey: "ssh-ed25519 …" }');
+      return `${k.index} ${parts[i + 1]}\n`;
+    })
+    .join('');
+  return createHash('sha256').update(lines).digest('hex');
+}
+const enrolMessage = (fp: string, nonce: string, keys: Array<{ index: number; publicKey: string }>) =>
+  `PMVPN-ENROL:v1:${fp}:${nonce}:${keysDigest(keys)}`;
+const revokeMessage = (fp: string, nonce: string) => `PMVPN-REVOKE:v1:${fp}:${nonce}`;
 import type { WalletMap } from '../config/wallets.js';
 import type { KeyringEnrolRequest, KeyringEnrolResponse, KeyringEntry } from '../shared.js';
 
@@ -40,8 +61,10 @@ function readJson(req: IncomingMessage): Promise<any> {
 }
 
 function hostFromRequest(req: IncomingMessage): string {
-  const h = (req.headers.host || 'localhost').replace(/:\d+$/, '');
-  return h.replace(/^\[|\]$/g, '');
+  if (PUBLIC_HOST) return PUBLIC_HOST;
+  const h = (req.headers.host || 'localhost').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  // This text goes into an ssh_config, so a crafted Host header must not add directives.
+  return /^[A-Za-z0-9.:_-]+$/.test(h) ? h : 'localhost';
 }
 
 function aliasOf(host: string): string {
@@ -52,7 +75,7 @@ export function renderSshConfig(host: string, user: string, keys: KeyringEntry[]
   const alias = aliasOf(host);
   const dir = `~/.pmvpn/keys/${alias}`;
   const out = [`# pmVPN keyring for ${host} — one Host per port, one key per Host.`, ''];
-  for (const k of keys) {
+  for (const k of keys.filter((key) => SSH_PORT_INDICES.includes(key.index))) {
     out.push(
       `Host ${alias}-${k.slug}`,
       `  HostName ${host}`,
@@ -62,6 +85,11 @@ export function renderSshConfig(host: string, user: string, keys: KeyringEntry[]
       `  IdentitiesOnly yes`,
       `  PreferredAuthentications publickey`,
       `  ForwardAgent no`,
+      `  ServerAliveInterval 30`,
+      `  ServerAliveCountMax 3`,
+      `  ControlMaster auto`,
+      `  ControlPath ~/.pmvpn/cm-%C`,
+      `  ControlPersist 5m`,
       '',
     );
   }
@@ -107,13 +135,22 @@ export async function handleKeyringRoute(
   try { body = await readJson(req); } catch (err: any) { sendJSON(res, 400, { error: err.message }); return true; }
 
   const { address, signature, nonce } = body;
-  if (!address || !signature || !nonce) { sendJSON(res, 400, { error: 'address, signature and nonce are required' }); return true; }
+  if (typeof address !== 'string' || typeof signature !== 'string' || typeof nonce !== 'string') {
+    sendJSON(res, 400, { error: 'address, signature and nonce are required' }); return true;
+  }
 
-  // Same three steps as SSH password auth: nonce → signature → provision
-  const message = consumeChallenge(nonce);
-  if (!message) { sendJSON(res, 401, { error: 'invalid or expired nonce' }); return true; }
-  const valid = await verifyWalletSignature(address, message, signature);
-  if (!valid) { sendJSON(res, 401, { error: 'invalid signature' }); return true; }
+  // The signature must cover this action, this host and (for enrolment) these exact keys,
+  // so one seen in transit can't enrol anyone else's keys or revoke a ring.
+  const fp = hostKeyFingerprint();
+  let expected: string;
+  try {
+    expected = req.method === 'DELETE'
+      ? revokeMessage(fp, nonce)
+      : enrolMessage(fp, nonce, Array.isArray(body.keys) ? body.keys as any : []);
+  } catch (err: any) { sendJSON(res, 400, { error: err.message }); return true; }
+  if (!consumeChallenge(nonce)) { sendJSON(res, 401, { error: 'invalid or expired nonce' }); return true; }
+  const valid = await verifyWalletSignature(address, expected, signature);
+  if (!valid) { sendJSON(res, 401, { error: 'invalid signature: sign the enrolment message for this host and these keys', expected }); return true; }
   const prov = provisionWallet(address, walletMap);
   if (!prov.ok || !prov.entry) { sendJSON(res, 403, { error: prov.error || 'provisioning failed' }); return true; }
   const addr = address.toLowerCase();
@@ -121,12 +158,13 @@ export async function handleKeyringRoute(
   if (req.method === 'DELETE') {
     const had = deleteKeyring(addr);
     syncAuthorizedKeys(prov.entry.user, addr, null);
-    sendJSON(res, 200, { revoked: had });
+    // Revoking means logged out: connections made with the old keys end now, not when they idle.
+    const closed = closeWalletSessions(addr);
+    sendJSON(res, 200, { revoked: had, closedSessions: closed });
     return true;
   }
 
   // POST — enrol
-  const fp = hostKeyFingerprint();
   if (typeof body.hostFingerprint !== 'string' || body.hostFingerprint.replace(/=$/, '') !== fp) {
     sendJSON(res, 400, { error: 'host fingerprint mismatch — derive the ring for this server', hostFingerprint: fp });
     return true;

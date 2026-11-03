@@ -2,6 +2,54 @@
 
 *Audit date: 2026-03-28 | Auditor: Claude Opus 4.6 | Commit: 089a675*
 *Updated: 2026-05-22 — privilege drop + jail warden + wallet binding implemented*
+*Updated for 0.3.0 — full audit; findings below, earlier record kept underneath.*
+
+---
+
+## 0.3.0 audit
+
+Scope: the server (SSH, HTTP, WebSocket, shares, SFTP), the jail warden scripts, the
+provider gateway and fleet ports, the Hostinger and BANKON Vault modules, crypto-ssh and the
+web/Tauri client. Method: code review, with every fix checked by type checking, unit tests
+and functional tests against a loopback server. The jail paths that need root were reviewed
+and their user-side logic exercised; they were not run end to end as root.
+
+Severity is for an internet-facing server with auto-registration on.
+
+### Fixed in 0.3.0
+
+| Severity | Area | Issue | Fix |
+|---|---|---|---|
+| Critical | SSH, WebSocket, HTTP | Some malformed unauthenticated input could stop the server process | Input shape checks, error boundaries around every async handler, URL parsing inside the error path |
+| Critical | Provider gateway | Any signed-in wallet, including auto-registered participants, could run cloud provider commands | `/provider` requires the admin role; fleet deploy requires `deploy:servers` |
+| Critical | Warden, keyring mirror | Root wrote and read files inside homes the user controls, so planted links could redirect those operations | Every file operation in a user's home runs as that user (`runuser`, or a child with the user's uid) |
+| Critical | Shares | Share metadata could be overwritten through the file API and was trusted on reload | Share ids validated against their directory, hidden and path-like names refused, creator-only writes, size and count limits |
+| High | SFTP | When the privilege-dropping worker was unavailable, file operations fell back to running as root | No fallback: the worker must start and report the user's uid, otherwise SFTP is refused |
+| High | Sessions | A non-root server ran sessions as itself whatever user a wallet mapped to | Sessions run only as the mapped user: as root by dropping to it (never uid 0), otherwise only when it is the server's own account |
+| High | Keyring enrolment | A login-challenge signature seen on plain HTTP could be reused to enrol different keys | Enrolment and revocation sign a message naming the host, nonce and key digest |
+| High | `/diagnostics` | Admin and per-wallet tiers trusted an unverified `X-Wallet` header | Tiers above public require a signed, single-use challenge |
+| High | Hostinger module | Root passwords returned in API data; `npx …@latest` run with the server's full environment | Credentials removed from data; version pinned and configurable; minimal environment |
+| High | Client | Server-, file- and profile-supplied text rendered as HTML | Escaping at every sink; CSP with `script-src 'self'`; xterm CSS bundled |
+| High | Client | The wallet signed whatever text a server's challenge contained | Login signs only `PMVPN:<nonce>:<ts>` for the nonce received; other signing limited to messages the client builds |
+| Medium | Challenge API | One client could exhaust the global nonce store and block all logins | Per-address rate limit shared by every issuer |
+| Medium | SSH | No login deadline, no failed-attempt limit | Grace time from TCP accept; failed attempts per connection are capped |
+| Medium | SFTP | Uploads buffered without limit and ignored write offsets | Offset-aware writes, refused at the 50 MB limit as they arrive |
+| Medium | Shares | Default directory under `/tmp` while running as root | Default `~/.pmvpn/shares`, mode 0700 |
+| Medium | Revocation | Revoked keys kept their live connections | Revoke ends the wallet's sessions |
+| Medium | Client | Bootstrap wrote the connection's display name into a remote shell script and wallet map | Remote user prompted and validated; port and address validated |
+| Low | Client | Keys tab trusted `/status` on every visit; the TOFU store existed but had no callers | Host key pinned per host; a change stops enrolment; enrolled host key checked against the derived one |
+| Low | Storage | `wallets.json` world-readable and written in place; failed provisioning left stale mappings | Mode 0600, atomic rename, persisted only after the account exists |
+
+### Open
+
+| Severity | Area | Issue | Direction |
+|---|---|---|---|
+| High | Transport | HTTP and WebSocket ports have no TLS; browser terminal traffic and login signatures are readable on the path | TLS on the HTTP/WS ports, or a TLS proxy |
+| Medium | Browser login | The login challenge is not bound to a host, so a malicious server can relay a user's login to another pmVPN server | Add the host fingerprint to the challenge and have clients check it (protocol change) |
+| Medium | Fleet | Several read endpoints are unauthenticated; mesh `/sync` checks membership but not the signature; heartbeat timestamps are not checked for freshness | Authenticate reads; verify signatures; reject stale timestamps |
+| Medium | BANKON Vault | Threshold mode does not provide 2-of-3; signature mode does not verify the signature; one vault shared by all wallets; short GCM tags accepted; manifest writes not atomic. Not reachable from the network today | Rework before wiring it to any endpoint |
+| Low | SSH | Failed-attempt limit is per connection, not per source address | Per-address limiter |
+| Low | Docs | `CLAUDE.md` and the vault architecture document describe a Tauri `bankon_vault` with Argon2id that the client does not contain | Correct the documents or build it |
 
 ---
 
